@@ -12,8 +12,17 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
 
-  const handleNext = () => setStep(step + 1);
-  const handleBack = () => setStep(step - 1);
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const handleNext = () => {
+    if (step === 1 && !isValidEmail(formData.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    setError('');
+    setStep(step + 1);
+  };
+  const handleBack = () => { setError(''); setStep(step - 1); };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -145,7 +154,8 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Recipient Email (For PDF Delivery)</label>
-                    <input type="email" className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="orders@reliableexteriors.com" />
+                    <input type="email" className={`w-full bg-slate-900 border rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none ${formData.email && !isValidEmail(formData.email) ? 'border-red-500' : 'border-slate-700'}`} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="orders@reliableexteriors.com" />
+                    {formData.email && !isValidEmail(formData.email) && <p className="text-red-400 text-xs mt-1">Please enter a valid email address</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Job Notes</label>
@@ -153,7 +163,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="mt-8 flex justify-end">
-                  <button onClick={handleNext} disabled={!formData.customerName || !formData.email} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 py-3 rounded-lg font-bold flex items-center transition-all">
+                  <button onClick={handleNext} disabled={!formData.customerName || !formData.email || !isValidEmail(formData.email)} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 py-3 rounded-lg font-bold flex items-center transition-all">
                     Next Step <ArrowRight className="ml-2 w-4 h-4" />
                   </button>
                 </div>
