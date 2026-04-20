@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileType, CheckCircle, ArrowRight, Loader2, Info, Download } from "lucide-react";
+import { Upload, FileType, CheckCircle, ArrowRight, Loader2, Info, Download, Trash2 } from "lucide-react";
 
 export default function Home() {
   const [step, setStep] = useState(1);
@@ -24,7 +24,8 @@ export default function Home() {
         return;
       }
       setError('');
-      setFiles(selectedFiles);
+      setFiles(prev => [...prev, ...selectedFiles]);
+      e.target.value = ''; // Reset input so you can re-select
     }
   };
 
@@ -33,26 +34,60 @@ export default function Home() {
     setError('');
     
     try {
-      const payload = new FormData();
-      payload.append('customerName', formData.customerName);
-      payload.append('address', formData.address);
-      payload.append('email', formData.email);
-      payload.append('notes', formData.notes);
-      files.forEach(f => payload.append('files', f));
+      const uploadResults = [];
 
+      for (const file of files) {
+         // 1. Gather a secure upload destination from backend
+         const urlReq = await fetch('/api/get-upload-url', {
+            method: 'POST',
+            body: JSON.stringify({ filename: file.name }),
+            headers: { 'Content-Type': 'application/json' }
+         });
+         const urlData = await urlReq.json();
+         if (!urlReq.ok) throw new Error(urlData.error);
+         
+         // 2. Direct PUT to Supabase Bucket (bypassing NodeJS body constraints entirely)
+         if (urlData.signedUrl !== 'mock-url') {
+            const uploadReq = await fetch(urlData.signedUrl, {
+               method: 'PUT',
+               body: file,
+               headers: { 'Content-Type': file.type }
+            });
+            if (!uploadReq.ok) throw new Error(`Failed to upload ${file.name} directly to cloud.`);
+         }
+         
+         uploadResults.push({
+            path: urlData.path,
+            mimeType: file.type,
+            name: file.name
+         });
+      }
+
+      const payload = {
+        ...formData,
+        uploadedFiles: uploadResults
+      };
+
+      // 3. Command API logic
       const res = await fetch('/api/process-job', {
         method: 'POST',
-        body: payload
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error("Critical Server Crash. The payload might still be too large, or your API keys triggered an edge crash.");
+      }
       
       if (!res.ok) throw new Error(data.error || "Failed to process job.");
       
       setResult(data);
       setStep(3);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Error occurred during processing.');
     } finally {
       setLoading(false);
     }
@@ -134,7 +169,7 @@ export default function Home() {
                   <Upload className="w-12 h-12 text-slate-400 mb-4 group-hover:text-blue-400 transition-colors" />
                   <p className="text-slate-300 font-medium">Drag & drop files or click to browse</p>
                   <p className="text-slate-500 text-xs mt-2">Support for PDF, image, and text formats</p>
-                  <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.txt,.doc,.docx,application/pdf,image/*,text/plain" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 </div>
 
                 {error && <p className="text-red-400 text-sm mt-4 flex items-center"><Info className="w-4 h-4 mr-2"/>{error}</p>}
@@ -146,6 +181,9 @@ export default function Home() {
                         <FileType className="w-5 h-5 text-emerald-400 mr-3" />
                         <span className="flex-1 truncate text-sm">{f.name}</span>
                         <span className="text-xs text-slate-400">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                        <button onClick={() => setFiles(files.filter((_, index) => index !== i))} className="ml-4 text-slate-500 hover:text-red-400 transition-colors outline-none" title="Remove Document">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>

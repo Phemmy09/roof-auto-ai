@@ -25,55 +25,76 @@ export async function POST(request: Request) {
   const origin = request.headers.get('origin') || undefined;
   
   try {
-    const formData = await request.formData();
-    const customerName = formData.get('customerName') as string || 'Test Customer';
-    const address = formData.get('address') as string || '123 Test St';
-    const email = formData.get('email') as string || 'test@example.com';
-    const notes = formData.get('notes') as string || '';
-    const files = formData.getAll('files') as File[];
-    
-    const MAX_SIZE = 10 * 1024 * 1024;
-    for (const file of files) {
-      if (file.size > MAX_SIZE) {
-        return setCors(NextResponse.json({ error: `File ${file.name} exceeds 10MB limit.` }, { status: 400 }), origin);
-      }
-    }
+    const payload = await request.json();
+    const customerName = payload.customerName as string || 'Test Customer';
+    const address = payload.address as string || '123 Test St';
+    const email = payload.email as string || 'test@example.com';
+    const notes = payload.notes as string || '';
+    const uploadedFiles = payload.uploadedFiles as any[] || [];
 
     const blobUrls: string[] = [];
     const documentContents: any[] = [];
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
     
-    // Check if using placeholder URL to bypass throwing network errors
     const isMock = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project');
 
-    for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const filename = `jobs/${Date.now()}_${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
+    for (const file of uploadedFiles) {
+      let buffer: Buffer | null = null;
       
       if (!isMock) {
         try {
-          const { error: uploadError } = await supabaseAdmin.storage.from(bucket).upload(filename, buffer, { contentType: file.type });
-          if (!uploadError) {
-             const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(filename);
-             blobUrls.push(data.publicUrl);
+          const { data, error } = await supabaseAdmin.storage.from(bucket).download(file.path);
+          if (data) {
+             const arrayBuffer = await data.arrayBuffer();
+             buffer = Buffer.from(arrayBuffer);
+          } else {
+             console.error("Storage download failed:", error);
           }
+          
+          const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(file.path);
+          blobUrls.push(pubData.publicUrl);
         } catch (e) {
           console.error("Supabase Storage error:", e);
         }
       } else {
-        blobUrls.push('https://mock-storage.link/' + filename);
+        blobUrls.push('https://mock-storage.link/' + file.name);
       }
 
-      if (file.type === 'application/pdf') {
-        documentContents.push({ type: 'document', mediaType: 'application/pdf', data: buffer.toString('base64') });
-      } else if (file.type.startsWith('image/')) {
-        documentContents.push({ type: 'image', mediaType: file.type === 'image/jpg' ? 'image/jpeg' : file.type, data: buffer.toString('base64') });
-      } else if (file.type === 'text/plain') {
+      if (isMock || !buffer) continue;
+
+      const mime = file.mimeType || '';
+      
+      // PDFs → native document type (Claude Sonnet 4 supports natively)
+      if (mime === 'application/pdf') {
+        documentContents.push({ 
+          type: 'document', 
+          source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } 
+        });
+      } 
+      // Images → native image type (vision support)
+      else if (mime.startsWith('image/')) {
+        const normalizedMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
+        documentContents.push({ 
+          type: 'image', 
+          source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') } 
+        });
+      } 
+      // Plain text
+      else if (mime === 'text/plain') {
         documentContents.push({ type: 'text', text: buffer.toString('utf-8') });
+      }
+      // Word documents (.docx / .doc) — extract raw text content for Claude
+      else if (mime.includes('wordprocessingml') || mime === 'application/msword' || mime.includes('officedocument')) {
+        // Word documents aren't natively supported by Claude's document API,
+        // so we extract any readable text from the raw bytes
+        const textContent = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length > 50) {
+          documentContents.push({ type: 'text', text: `[Content from Word document: ${file.name}]\n${textContent}` });
+        }
       }
     }
 
+    // AI Extraction
     const extractedData = await extractJobData(documentContents);
     const data = extractedData || {};
     const calculatedMaterials = await calculateAllMaterials(data);
@@ -98,7 +119,7 @@ export async function POST(request: Request) {
       if (jobError) console.error("Error creating job in Supabase:", jobError);
       if (job) jobId = job.id;
 
-      // Dynamic 10-Minute TTL Auto-Cleanup strategy
+      // Dynamic 10-Minute TTL Auto-Cleanup
       const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
       supabaseAdmin.from('jobs').delete().lt('created_at', tenMinsAgo).then(({ error }) => {
          if (error) console.error("Auto Cleanup Failed:", error);

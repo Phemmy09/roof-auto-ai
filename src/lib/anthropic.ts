@@ -20,25 +20,37 @@ export async function extractJobData(documents: any[]) {
       vents: 4,
       insuranceCompany: "Mock Insurance Co.",
       claimNumber: "CLM-99999",
+      approvedAmount: "$12,500",
+      deductible: "$1,000",
       customerName: "Jane Doe Testing",
-      address: "456 Test Street, Mock City"
+      address: "456 Test Street, Mock City",
+      notes: "Mock extraction — replace API keys with real credentials to get live data."
+    };
+  }
+
+  // If no documents were provided (empty array), still return mock data
+  if (!documents || documents.length === 0) {
+    console.warn("No document content blocks received. Returning default mock data.");
+    return {
+      squares: 0, pitch: "N/A", ridges: 0, hips: 0, valleys: 0,
+      rakes: 0, eaves: 0, pipeBoots: 0, vents: 0,
+      insuranceCompany: "N/A", claimNumber: "N/A",
+      approvedAmount: "N/A", deductible: "N/A",
+      customerName: "N/A", address: "N/A",
+      notes: "No documents found to extract."
     };
   }
 
   try {
-    const contentBlocks: any[] = documents.map(doc => {
-      if (doc.type === 'document') {
-        return { type: 'document', source: { type: 'base64', media_type: doc.mediaType, data: doc.data } };
-      } else if (doc.type === 'image') {
-        return { type: 'image', source: { type: 'base64', media_type: doc.mediaType, data: doc.data } };
-      } else if (doc.type === 'text') {
-        return { type: 'text', text: doc.text };
-      }
-    }).filter(Boolean);
+    // Build content blocks — documents already arrive in correct Anthropic format from the route
+    const contentBlocks: any[] = [...documents];
 
     contentBlocks.push({
       type: 'text',
-      text: `Extract details from these provided documents and return ONLY a JSON object exactly matching this structure (no markdown tags or explanation):
+      text: `You are analyzing roofing job documents. The documents may include Eagle View reports (PDFs with roof measurements and diagrams), insurance scope documents, signed contracts, city permits, and job site photos.
+
+Extract all relevant data and return ONLY a valid JSON object matching this exact structure. If a field is not found, use 0 for numbers and "N/A" for strings. Do NOT wrap in markdown code blocks:
+
 {
   "squares": number,
   "pitch": string,
@@ -56,23 +68,33 @@ export async function extractJobData(documents: any[]) {
   "customerName": string,
   "address": string,
   "notes": string
-}`
+}
+
+IMPORTANT: For images showing roof diagrams or measurements, extract any visible numbers. For PDFs with tables, extract from structured data. Eagle View data takes highest priority.`
     });
 
-    const msg = await anthropic.beta.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      betas: ["pdfs-2024-09-25"], // Required for PDF support
-      max_tokens: 2000,
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
       temperature: 0,
-      system: "You are an expert data extractor for roofing contractors. You extract materials, dimensions, and damages from document text (Eagle View, Insurance, Contracts, Permits). Prioritize Eagle View data when available. Return ONLY raw JSON without markdown blocks.",
+      system: "You are an expert data extractor for roofing contractors. You analyze Eagle View reports, insurance scopes, contracts, permits, and site photos to extract roof measurements and material data. You can read tables, diagrams, and images. Prioritize Eagle View data when available. Always return valid JSON only — no markdown formatting.",
       messages: [ { role: 'user', content: contentBlocks } ]
     });
 
     const responseContent = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
+    // Clean any accidental markdown wrapping
     const cleaned = responseContent.replace(/```json/gi, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
-  } catch (error) {
-    console.error("Error calling Anthropic:", error);
-    throw new Error("Failed to extract data via Anthropic.");
+  } catch (error: any) {
+    console.error("Error calling Anthropic:", error?.message || error);
+    // Return empty data rather than crashing the whole pipeline
+    return {
+      squares: 0, pitch: "N/A", ridges: 0, hips: 0, valleys: 0,
+      rakes: 0, eaves: 0, pipeBoots: 0, vents: 0,
+      insuranceCompany: "N/A", claimNumber: "N/A",
+      approvedAmount: "N/A", deductible: "N/A",
+      customerName: "N/A", address: "N/A",
+      notes: `Extraction error: ${error?.message || 'Unknown error'}`
+    };
   }
 }
