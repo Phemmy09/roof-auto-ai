@@ -1,19 +1,37 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-const resend = process.env.RESEND_API_KEY && !process.env.RESEND_API_KEY.includes('your_')
-  ? new Resend(process.env.RESEND_API_KEY) 
-  : null;
+// Create SMTP transporter using environment variables
+// Supports Gmail, Outlook, or any SMTP provider
+function createTransporter() {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const user = process.env.SMTP_USER || '';
+  const pass = process.env.SMTP_PASS || '';
+
+  if (!user || !pass || user.includes('your_')) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+}
 
 export async function sendJobPDF(email: string, pdfBuffer: Buffer, jobName: string) {
-  if (!resend) {
-    console.warn("Resend API Key missing or placeholder. Skipping email.");
-    return { success: false, error: 'Resend API Key not configured' };
+  const transporter = createTransporter();
+
+  if (!transporter) {
+    console.warn("SMTP credentials not configured. Skipping email.");
+    return { success: false, error: 'SMTP not configured' };
   }
 
   try {
-    const data = await resend.emails.send({
-      from: 'Roof Auto <onboarding@resend.dev>',
-      to: [email],
+    const info = await transporter.sendMail({
+      from: `"Roof Auto AI" <${process.env.SMTP_USER}>`,
+      to: email,
       subject: `Materials Order & Crew Summary - ${jobName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -29,13 +47,14 @@ export async function sendJobPDF(email: string, pdfBuffer: Buffer, jobName: stri
       attachments: [
         {
           filename: `${jobName.replace(/\s+/g, '_')}_Materials_Order.pdf`,
-          content: pdfBuffer.toString('base64'),
+          content: pdfBuffer,
           contentType: 'application/pdf',
         },
       ],
     });
-    console.log("Email sent successfully to:", email);
-    return { success: true, data };
+
+    console.log("Email sent successfully to:", email, "MessageID:", info.messageId);
+    return { success: true, data: { messageId: info.messageId } };
   } catch (error: any) {
     console.error('Error sending email:', error?.message || error);
     return { success: false, error: error?.message || 'Unknown email error' };
