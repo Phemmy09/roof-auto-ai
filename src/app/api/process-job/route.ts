@@ -5,7 +5,7 @@ import { generatePDFBuffer } from '@/lib/pdf';
 import { sendJobPDF } from '@/lib/email';
 import { calculateAllMaterials } from '@/lib/formulas';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function setCors(response: NextResponse, requestOrigin?: string) {
   const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
@@ -38,19 +38,18 @@ export async function POST(request: Request) {
     
     const isMock = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project');
 
-    for (const file of uploadedFiles) {
+    // Download all files in parallel
+    await Promise.all(uploadedFiles.map(async (file) => {
       let buffer: Buffer | null = null;
-      
+
       if (!isMock) {
         try {
           const { data, error } = await supabaseAdmin.storage.from(bucket).download(file.path);
           if (data) {
-             const arrayBuffer = await data.arrayBuffer();
-             buffer = Buffer.from(arrayBuffer);
+            buffer = Buffer.from(await data.arrayBuffer());
           } else {
-             console.error("Storage download failed:", error);
+            console.error("Storage download failed:", error);
           }
-          
           const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(file.path);
           blobUrls.push(pubData.publicUrl);
         } catch (e) {
@@ -60,39 +59,30 @@ export async function POST(request: Request) {
         blobUrls.push('https://mock-storage.link/' + file.name);
       }
 
-      if (isMock || !buffer) continue;
+      if (isMock || !buffer) return;
 
       const mime = file.mimeType || '';
-      
-      // PDFs → native document type (Claude Sonnet 4 supports natively)
+
       if (mime === 'application/pdf') {
-        documentContents.push({ 
-          type: 'document', 
-          source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } 
+        documentContents.push({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') }
         });
-      } 
-      // Images → native image type (vision support)
-      else if (mime.startsWith('image/')) {
+      } else if (mime.startsWith('image/')) {
         const normalizedMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
-        documentContents.push({ 
-          type: 'image', 
-          source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') } 
+        documentContents.push({
+          type: 'image',
+          source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') }
         });
-      } 
-      // Plain text
-      else if (mime === 'text/plain') {
+      } else if (mime === 'text/plain') {
         documentContents.push({ type: 'text', text: buffer.toString('utf-8') });
-      }
-      // Word documents (.docx / .doc) — extract raw text content for Claude
-      else if (mime.includes('wordprocessingml') || mime === 'application/msword' || mime.includes('officedocument')) {
-        // Word documents aren't natively supported by Claude's document API,
-        // so we extract any readable text from the raw bytes
+      } else if (mime.includes('wordprocessingml') || mime === 'application/msword' || mime.includes('officedocument')) {
         const textContent = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
         if (textContent.length > 50) {
           documentContents.push({ type: 'text', text: `[Content from Word document: ${file.name}]\n${textContent}` });
         }
       }
-    }
+    }));
 
     // AI Extraction
     const extractedData = await extractJobData(documentContents);
@@ -110,8 +100,7 @@ export async function POST(request: Request) {
           email,
           notes,
           extracted_data: data,
-          calculated_materials: calculatedMaterials,
-          blob_urls: blobUrls
+          calculated_materials: calculatedMaterials
         }])
         .select()
         .single();

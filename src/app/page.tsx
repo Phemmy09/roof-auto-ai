@@ -46,30 +46,12 @@ export default function Home() {
       const uploadResults = [];
 
       for (const file of files) {
-         // 1. Gather a secure upload destination from backend
-         const urlReq = await fetch('/api/get-upload-url', {
-            method: 'POST',
-            body: JSON.stringify({ filename: file.name }),
-            headers: { 'Content-Type': 'application/json' }
-         });
-         const urlData = await urlReq.json();
-         if (!urlReq.ok) throw new Error(urlData.error);
-         
-         // 2. Direct PUT to Supabase Bucket (bypassing NodeJS body constraints entirely)
-         if (urlData.signedUrl !== 'mock-url') {
-            const uploadReq = await fetch(urlData.signedUrl, {
-               method: 'PUT',
-               body: file,
-               headers: { 'Content-Type': file.type }
-            });
-            if (!uploadReq.ok) throw new Error(`Failed to upload ${file.name} directly to cloud.`);
-         }
-         
-         uploadResults.push({
-            path: urlData.path,
-            mimeType: file.type,
-            name: file.name
-         });
+         const form = new FormData();
+         form.append('file', file);
+         const uploadReq = await fetch('/api/upload-file', { method: 'POST', body: form });
+         const uploadData = await uploadReq.json();
+         if (!uploadReq.ok) throw new Error(uploadData.error || `Failed to upload ${file.name}`);
+         uploadResults.push({ path: uploadData.path, mimeType: file.type, name: file.name });
       }
 
       const payload = {
@@ -136,6 +118,7 @@ export default function Home() {
                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
                <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Claude AI is calculating...</h3>
                <p className="text-slate-400 text-sm mt-2">Reading documents and computing formulas.</p>
+               <p className="text-slate-500 text-xs mt-1">This typically takes 70 seconds or less.</p>
             </div>
           )}
 
