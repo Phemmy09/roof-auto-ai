@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { extractJobData } from '@/lib/anthropic';
+import { extractJobData, generateOutputDocuments } from '@/lib/anthropic';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generatePDFBuffer } from '@/lib/pdf';
 import { sendJobPDF } from '@/lib/email';
@@ -10,7 +10,6 @@ export const maxDuration = 300;
 function setCors(response: NextResponse, requestOrigin?: string) {
   const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
   const origin = requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0] || '*';
-  
   response.headers.set('Access-Control-Allow-Origin', origin);
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -23,7 +22,7 @@ export async function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   const origin = request.headers.get('origin') || undefined;
-  
+
   try {
     const payload = await request.json();
     const customerName = payload.customerName as string || 'Test Customer';
@@ -35,7 +34,6 @@ export async function POST(request: Request) {
     const blobUrls: string[] = [];
     const documentContents: any[] = [];
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
-    
     const isMock = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project');
 
     // Download all files in parallel
@@ -62,18 +60,11 @@ export async function POST(request: Request) {
       if (isMock || !buffer) return;
 
       const mime = file.mimeType || '';
-
       if (mime === 'application/pdf') {
-        documentContents.push({
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') }
-        });
+        documentContents.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } });
       } else if (mime.startsWith('image/')) {
         const normalizedMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
-        documentContents.push({
-          type: 'image',
-          source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') }
-        });
+        documentContents.push({ type: 'image', source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') } });
       } else if (mime === 'text/plain') {
         documentContents.push({ type: 'text', text: buffer.toString('utf-8') });
       } else if (mime.includes('wordprocessingml') || mime === 'application/msword' || mime.includes('officedocument')) {
@@ -84,13 +75,16 @@ export async function POST(request: Request) {
       }
     }));
 
-    // AI Extraction
+    // Step 1: Extract measurements from documents
     const extractedData = await extractJobData(documentContents);
     const data = extractedData || {};
     const calculatedMaterials = await calculateAllMaterials(data);
 
+    // Step 2: Generate three output documents using business rules
+    const outputDocs = await generateOutputDocuments(data, calculatedMaterials);
+
     let jobId = 'mock-job-id-' + Date.now();
-    
+
     if (!isMock) {
       const { data: job, error: jobError } = await supabaseAdmin
         .from('jobs')
@@ -100,7 +94,7 @@ export async function POST(request: Request) {
           email,
           notes,
           extracted_data: data,
-          calculated_materials: calculatedMaterials
+          calculated_materials: calculatedMaterials,
         }])
         .select()
         .single();
@@ -108,23 +102,31 @@ export async function POST(request: Request) {
       if (jobError) console.error("Error creating job in Supabase:", jobError);
       if (job) jobId = job.id;
 
-      // Dynamic 10-Minute TTL Auto-Cleanup
       const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
       supabaseAdmin.from('jobs').delete().lt('created_at', tenMinsAgo).then(({ error }) => {
-         if (error) console.error("Auto Cleanup Failed:", error);
+        if (error) console.error("Auto Cleanup Failed:", error);
       });
     }
 
-    const pdfBuffer = await generatePDFBuffer({ ...data, customerName, address }, calculatedMaterials);
+    const pdfBuffer = await generatePDFBuffer(
+      { ...data, customerName, address },
+      calculatedMaterials,
+      outputDocs.crewInstructions,
+      outputDocs.laborItems,
+      outputDocs.materialNotes
+    );
     const emailResult = await sendJobPDF(email, pdfBuffer, customerName);
 
-    return setCors(NextResponse.json({ 
-       success: true, 
-       jobId,
-       extractedData: data, 
-       calculatedMaterials,
-       emailSent: emailResult.success,
-       pdfBase64: pdfBuffer.toString('base64')
+    return setCors(NextResponse.json({
+      success: true,
+      jobId,
+      extractedData: data,
+      calculatedMaterials,
+      crewInstructions: outputDocs.crewInstructions,
+      laborItems: outputDocs.laborItems,
+      materialNotes: outputDocs.materialNotes,
+      emailSent: emailResult.success,
+      pdfBase64: pdfBuffer.toString('base64')
     }), origin);
 
   } catch (error: any) {

@@ -1,42 +1,64 @@
-import { supabaseAdmin } from './supabase';
-
 export async function calculateAllMaterials(data: any) {
-  let activeConfig = {
-    felt_coverage: 4, ice_water_coverage: 60, ridge_cap_coverage: 30, drip_edge_length: 10, coil_nails_coverage: 20,
-    enable_felt: true, enable_ice_water: true, enable_ridge_cap: true, enable_drip_edge: true, enable_coil_nails: true
-  };
+  const squares    = Number(data.squares)   || 0;
+  const valleys    = Number(data.valleys)   || 0;
+  const eaves      = Number(data.eaves)     || 0;
+  const ridges     = Number(data.ridges)    || 0;
+  const hips       = Number(data.hips)      || 0;
+  const rakes      = Number(data.rakes)     || 0;
+  const pipeBoots  = Number(data.pipeBoots) || 0;
 
-  try {
-    if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
-      throw new Error('Placeholder URL detected');
-    }
-    
-    const { data: config, error } = await supabaseAdmin
-      .from('formula_config')
-      .select('*')
-      .eq('singleton_key', 'STATIC')
-      .single();
-      
-    if (!error && config) {
-       activeConfig = config;
-    }
-  } catch (e) {
-    console.warn("Using default formulas due to placeholder Supabase configurations.");
-  }
+  // Field shingles — 10% waste factor
+  const shingles = Math.ceil(squares * 1.10);
 
-  const squares = data.squares || 0;
-  const valleys = data.valleys || 0;
-  const eaves = data.eaves || 0;
-  const ridges = data.ridges || 0;
-  const hips = data.hips || 0;
-  const rakes = data.rakes || 0;
+  // Hip & ridge shingles — 30% waste, ~31 LF per bundle
+  const ridgeCap = Math.ceil(((ridges + hips) * 1.30) / 31);
+
+  // Starter strip — min 3 bundles, ~113 LF per bundle
+  const starterStrip = Math.max(3, Math.ceil((eaves + rakes) / 113));
+
+  // Synthetic underlayment — 10 SQ per roll, 5% waste
+  const felt = Math.ceil((squares * 1.05) / 10);
+
+  // Ice & water shield — 6 ft coverage at eaves + 3 ft in valleys, ~200 SF roll, 5% waste
+  const iceAndWater = Math.ceil(((eaves * 6) + (valleys * 3)) * 1.05 / 200);
+
+  // Drip edge rake — 30% extra for overlaps, 10 ft sticks
+  const dripEdgeRake = rakes > 0 ? Math.ceil((rakes * 1.30) / 10) : 0;
+
+  // Drip edge eave — 30% extra, 10 ft sticks
+  const dripEdgeEave = eaves > 0 ? Math.ceil((eaves * 1.30) / 10) : 0;
+
+  // Combined drip edge (backward compat)
+  const dripEdge = dripEdgeRake + dripEdgeEave;
+
+  // Pipe jacks — direct count from EagleView
+  const pipeJacks = pipeBoots;
+
+  // Ridge vent sections (4 ft each) — only if ridge exists
+  const ridgeVentSections = ridges > 0 ? Math.ceil(ridges / 4) : 0;
+
+  // Coil nails 1-1/4" — 1 case per 12 SQ
+  const coilNails = Math.ceil(squares / 12);
+
+  // Cap nails (plastic) — 1 box ≤25 SQ, 2 boxes >25 SQ
+  const capNails = squares <= 25 ? 1 : 2;
+
+  // Geocel 2300 sealant — min 3 tubes
+  const sealant = Math.max(3, Math.ceil(valleys / 40 + (ridges + hips) / 60));
 
   return {
-    shingles: Math.ceil(squares),
-    felt: activeConfig.enable_felt && activeConfig.felt_coverage > 0 ? Math.ceil(squares / activeConfig.felt_coverage) : 0,
-    iceAndWater: activeConfig.enable_ice_water && activeConfig.ice_water_coverage > 0 ? Math.ceil((valleys + eaves) / activeConfig.ice_water_coverage) : 0,
-    ridgeCap: activeConfig.enable_ridge_cap && activeConfig.ridge_cap_coverage > 0 ? Math.ceil((ridges + hips) / activeConfig.ridge_cap_coverage) : 0,
-    dripEdge: activeConfig.enable_drip_edge && activeConfig.drip_edge_length > 0 ? Math.ceil((rakes + eaves) / activeConfig.drip_edge_length) : 0,
-    coilNails: activeConfig.enable_coil_nails && activeConfig.coil_nails_coverage > 0 ? Math.ceil(squares / activeConfig.coil_nails_coverage) : 0
+    shingles,
+    felt,
+    iceAndWater,
+    ridgeCap,
+    dripEdge,
+    dripEdgeRake,
+    dripEdgeEave,
+    coilNails,
+    starterStrip,
+    pipeJacks,
+    ridgeVentSections,
+    capNails,
+    sealant,
   };
 }

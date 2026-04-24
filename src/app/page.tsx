@@ -6,7 +6,7 @@ import { Upload, FileType, CheckCircle, ArrowRight, Loader2, Info, Download, Tra
 
 export default function Home() {
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({ customerName: '', address: '', email: '', notes: '' });
+  const [formData, setFormData] = useState({ customerName: '', address: '', email: 'cheryl@therelexgroup.com', notes: '' });
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -218,27 +218,64 @@ export default function Home() {
                   <p className="text-slate-400 mt-2">The calculated order PDF has been generated and emailed to <strong className="text-white">{formData.email}</strong>.</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                   <div className="bg-slate-900 rounded-xl p-5 border border-slate-700">
-                     <h3 className="font-bold text-slate-300 mb-4 border-b border-slate-800 pb-2">Roof Measurements</h3>
-                     <ul className="space-y-2 text-sm">
-                       <li className="flex justify-between"><span className="text-slate-400">Squares:</span> <span className="font-medium text-white">{result.extractedData?.squares || 0}</span></li>
-                       <li className="flex justify-between"><span className="text-slate-400">Pitch:</span> <span className="font-medium text-white">{result.extractedData?.pitch || 'N/A'}</span></li>
-                       <li className="flex justify-between"><span className="text-slate-400">Ridges/Hips:</span> <span className="font-medium text-white">{(result.extractedData?.ridges || 0) + (result.extractedData?.hips || 0)} ft</span></li>
-                       <li className="flex justify-between"><span className="text-slate-400">Valleys:</span> <span className="font-medium text-white">{result.extractedData?.valleys || 0} ft</span></li>
-                     </ul>
-                   </div>
-                   <div className="bg-slate-900 rounded-xl p-5 border border-blue-900/50 shadow-[0_0_20px_rgba(30,58,138,0.2)]">
-                     <h3 className="font-bold text-blue-400 mb-4 border-b border-slate-800 pb-2">Materials to Order</h3>
-                     <ul className="space-y-2 text-sm text-slate-100">
-                       <li className="flex justify-between"><span>Shingles:</span> <span className="font-bold">{result.calculatedMaterials?.shingles || 0} squares</span></li>
-                       <li className="flex justify-between"><span>Felt Underlayment:</span> <span className="font-bold">{result.calculatedMaterials?.felt || 0} rolls</span></li>
-                       <li className="flex justify-between"><span>Ice & Water:</span> <span className="font-bold">{result.calculatedMaterials?.iceAndWater || 0} rolls</span></li>
-                       <li className="flex justify-between"><span>Ridge Cap:</span> <span className="font-bold">{result.calculatedMaterials?.ridgeCap || 0} bundles</span></li>
-                       <li className="flex justify-between"><span>Drip Edge:</span> <span className="font-bold">{result.calculatedMaterials?.dripEdge || 0} pcs</span></li>
-                       <li className="flex justify-between"><span>Coil Nails:</span> <span className="font-bold">{result.calculatedMaterials?.coilNails || 0} boxes</span></li>
-                     </ul>
-                   </div>
+                <div className="space-y-4">
+                  {/* Panel 1: Material Order Form */}
+                  <div className="bg-slate-900 rounded-xl p-5 border border-blue-900/50 shadow-[0_0_20px_rgba(30,58,138,0.2)]">
+                    <h3 className="font-bold text-blue-400 mb-4 border-b border-slate-800 pb-2">1. Material Order Form</h3>
+                    <div className="grid grid-cols-2 gap-x-8 text-sm">
+                      <div className="space-y-2">
+                        <div className="flex justify-between"><span className="text-slate-400">Field Shingles (w/ 10% waste):</span> <span className="font-bold text-white">{result.calculatedMaterials?.shingles || 0} SQ</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Hip &amp; Ridge Shingles:</span> <span className="font-bold text-white">{result.calculatedMaterials?.ridgeCap || 0} bundles</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Starter Strip:</span> <span className="font-bold text-white">{result.calculatedMaterials?.starterStrip || 0} bundles</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Synthetic Underlayment:</span> <span className="font-bold text-white">{result.calculatedMaterials?.felt || 0} rolls</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Ice &amp; Water Shield:</span> <span className="font-bold text-white">{result.calculatedMaterials?.iceAndWater || 0} rolls</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Drip Edge – Rake:</span> <span className="font-bold text-white">{result.calculatedMaterials?.dripEdgeRake || 0} pcs</span></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between"><span className="text-slate-400">Drip Edge – Eave:</span> <span className="font-bold text-white">{result.calculatedMaterials?.dripEdgeEave || 0} pcs</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Pipe Jacks:</span> <span className="font-bold text-white">{result.calculatedMaterials?.pipeJacks || 0} ea</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Ridge Vent (4 ft sections):</span> <span className="font-bold text-white">{result.calculatedMaterials?.ridgeVentSections || 0} sections</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">{'Coil Nails 1-1/4"'}:</span> <span className="font-bold text-white">{result.calculatedMaterials?.coilNails || 0} cases</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Cap Nails (Plastic):</span> <span className="font-bold text-white">{result.calculatedMaterials?.capNails || 0} boxes</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Geocel 2300 Sealant:</span> <span className="font-bold text-white">{result.calculatedMaterials?.sealant || 0} tubes</span></div>
+                      </div>
+                    </div>
+                    {result.materialNotes && result.materialNotes.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-800 space-y-1">
+                        {result.materialNotes.map((note: string, i: number) => (
+                          <p key={i} className="text-xs text-blue-300">* {note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Panel 2: Crew Instructions */}
+                  <div className="bg-slate-900 rounded-xl p-5 border border-emerald-900/50">
+                    <h3 className="font-bold text-emerald-400 mb-4 border-b border-slate-800 pb-2">2. Crew Instructions</h3>
+                    {result.crewInstructions && result.crewInstructions.length > 0 ? (
+                      <ol className="space-y-2 text-sm text-slate-200 list-decimal list-inside">
+                        {result.crewInstructions.map((item: string, i: number) => (
+                          <li key={i} className="leading-relaxed">{item}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No crew instructions generated.</p>
+                    )}
+                  </div>
+
+                  {/* Panel 3: Labor Items */}
+                  <div className="bg-slate-900 rounded-xl p-5 border border-amber-900/50">
+                    <h3 className="font-bold text-amber-400 mb-4 border-b border-slate-800 pb-2">3. Labor Items</h3>
+                    {result.laborItems && result.laborItems.length > 0 ? (
+                      <ol className="space-y-2 text-sm text-slate-200 list-decimal list-inside">
+                        {result.laborItems.map((item: string, i: number) => (
+                          <li key={i} className="leading-relaxed">{item}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No labor items generated.</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-8 text-center flex flex-col items-center">
@@ -254,7 +291,7 @@ export default function Home() {
                     }} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-bold transition-all flex items-center shadow-lg shadow-blue-900/50">
                        <Download className="w-5 h-5 mr-2" /> Download PDF
                     </button>
-                    <button onClick={() => { setStep(1); setFormData({ customerName: '', address: '', email: '', notes: '' }); setFiles([]); setResult(null); }} className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition-all">Start New Job</button>
+                    <button onClick={() => { setStep(1); setFormData({ customerName: '', address: '', email: 'cheryl@therelexgroup.com', notes: '' }); setFiles([]); setResult(null); }} className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold transition-all">Start New Job</button>
                   </div>
                 </div>
               </motion.div>
