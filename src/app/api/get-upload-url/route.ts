@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 500;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function POST(request: Request) {
   try {
     const { filename } = await request.json();
+
+    if (!filename) {
+      return NextResponse.json({ error: 'filename is required' }, { status: 400 });
+    }
+
     const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
     
     // Check for dummy config
@@ -15,23 +27,52 @@ export async function POST(request: Request) {
       });
     }
 
-    const path = `jobs/${Date.now()}_${filename.replace(/[^a-z0-9.]/gi, '_')}`;
+    // Sanitize filename: keep alphanumeric, dots, dashes, underscores
+    const safeName = filename.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const path = `jobs/${Date.now()}_${safeName}`;
     
-    const { data, error } = await supabaseAdmin.storage
-      .from(bucket)
-      .createSignedUploadUrl(path);
+    // Retry loop for transient Supabase socket errors
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const { data, error } = await supabaseAdmin.storage
+          .from(bucket)
+          .createSignedUploadUrl(path);
 
-    if (error) {
-       console.error("Error creating signed url", error);
-       return NextResponse.json({ error: error.message }, { status: 500 });
+        if (error) {
+          lastError = error;
+          // Retry on socket/fetch errors, fail fast on permission/auth errors
+          if (error.message?.includes('fetch failed') || error.message?.includes('socket')) {
+            console.warn(`[get-upload-url] Attempt ${attempt}/${MAX_RETRIES} failed (socket error) — retrying...`);
+            await sleep(RETRY_DELAY_MS * Math.pow(2, attempt - 1));
+            continue;
+          }
+          // Non-retryable error
+          console.error('[get-upload-url] Supabase error:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        // Success — return the signed URL
+        return NextResponse.json({ 
+          signedUrl: data.signedUrl,
+          token: data.token,
+          path: data.path,
+        });
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < MAX_RETRIES) {
+          const delay = RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+          console.warn(`[get-upload-url] Attempt ${attempt}/${MAX_RETRIES} exception — retrying in ${delay}ms...`);
+          await sleep(delay);
+        }
+      }
     }
 
-    return NextResponse.json({ 
-      signedUrl: data.signedUrl, 
-      token: data.token, 
-      path: data.path 
-    });
+    // All retries exhausted
+    console.error('[get-upload-url] All retries failed:', lastError?.message);
+    return NextResponse.json({ error: lastError?.message || 'Upload URL generation failed after retries' }, { status: 500 });
   } catch (error: any) {
+    console.error('[get-upload-url] Unexpected error:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

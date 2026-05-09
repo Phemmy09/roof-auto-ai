@@ -1,16 +1,20 @@
-const formData = new FormData();
-formData.append('customerName', 'Test User');
-formData.append('address', '123 Test St');
-formData.append('email', 'test@example.com');
-formData.append('notes', 'Testing API');
+// Quick smoke test for the process-job API endpoint.
+// Run with: node test.mjs
+// Requires the dev server to be running on port 3000.
 
-// Create a dummy text file blob
-const blob = new Blob(['dummy content for testing purposes'], { type: 'text/plain' });
-formData.append('files', blob, 'test.txt');
+const payload = {
+  customerName: 'Test Customer',
+  address: '123 Test Street, City, ST 00000',
+  email: 'test@example.com',
+  notes: 'Smoke test — no real files attached',
+  uploadedFiles: []
+};
 
 fetch('http://localhost:3000/api/process-job', {
   method: 'POST',
-  body: formData
-}).then(r => r.json()).then(data => {
-  console.log("RESPONSE:", JSON.stringify(data, null, 2));
-}).catch(e => console.error("FAIL:", e));
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload)
+})
+  .then(r => r.json())
+  .then(data => console.log('RESPONSE:', JSON.stringify(data, null, 2)))
+  .catch(e => console.error('FAIL:', e));

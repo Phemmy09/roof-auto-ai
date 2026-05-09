@@ -87,11 +87,13 @@ export default function Home() {
       try {
         data = await res.json();
       } catch (e) {
-        throw new Error("Critical Server Crash. The payload might still be too large, or your API keys triggered an edge crash.");
+        // Response body was not JSON — server likely crashed before sending a response
+        throw new Error(`Server error (status ${res.status}). Please try with fewer or smaller files.`);
       }
       
-      if (!res.ok) throw new Error(data.error || "Failed to process job.");
-      
+      if (!res.ok) throw new Error(data?.error || `Server returned ${res.status}. Please try again.`);
+      if (!data.calculatedMaterials) throw new Error(data.error || 'Server returned incomplete results. Please try again.');
+
       setResult(data);
       setStep(3);
     } catch (err: any) {

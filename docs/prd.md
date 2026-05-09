@@ -58,9 +58,9 @@ The platform must automatically calculate the following materials:
 
 **5.1 Technology Stack**
 * **Frontend & Backend:** Next.js (TypeScript).
-* **Database:** MongoDB Atlas.
-* **File Storage:** Vercel Blob (to handle large files securely in the cloud).
-* **Artificial Intelligence:** Anthropic Claude (claude-opus-4-6).
+* **Database:** Supabase (PostgreSQL).
+* **File Storage:** Supabase Storage (signed upload URLs bypass Vercel body size limits).
+* **Artificial Intelligence:** Anthropic Claude (claude-sonnet-4-6).
 * **Styling:** Tailwind CSS.
 * **Hosting:** Vercel.
 

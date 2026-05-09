@@ -14,13 +14,14 @@ CREATE TABLE IF NOT EXISTS public.jobs (
 );
 
 -- 2. Create Formula Config Table
+-- Coverage units: felt=SQ/roll, ice_water=LF/roll, ridge_cap=LF/bundle, drip_edge=LF/piece, coil_nails=SQ/case
 CREATE TABLE IF NOT EXISTS public.formula_config (
   singleton_key TEXT PRIMARY KEY DEFAULT 'STATIC',
-  felt_coverage NUMERIC DEFAULT 4,
+  felt_coverage NUMERIC DEFAULT 10,
   ice_water_coverage NUMERIC DEFAULT 60,
-  ridge_cap_coverage NUMERIC DEFAULT 30,
+  ridge_cap_coverage NUMERIC DEFAULT 31,
   drip_edge_length NUMERIC DEFAULT 10,
-  coil_nails_coverage NUMERIC DEFAULT 20,
+  coil_nails_coverage NUMERIC DEFAULT 12,
   enable_felt BOOLEAN DEFAULT TRUE,
   enable_ice_water BOOLEAN DEFAULT TRUE,
   enable_ridge_cap BOOLEAN DEFAULT TRUE,

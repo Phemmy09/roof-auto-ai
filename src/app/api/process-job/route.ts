@@ -1,15 +1,27 @@
 import { NextResponse } from 'next/server';
-import { extractJobData, generateOutputDocuments } from '@/lib/anthropic';
-import { supabaseAdmin } from '@/lib/supabase';
+import { processJobWithAI, capImageBuffer } from '@/lib/anthropic';
+import { calculateAllMaterials } from '@/lib/formulas';
 import { generatePDFBuffer } from '@/lib/pdf';
 import { sendJobPDF } from '@/lib/email';
-import { calculateAllMaterials } from '@/lib/formulas';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const maxDuration = 300;
 
+// ── Photo filename patterns — these are logged but NOT sent to Claude ──────
+const PHOTO_PATTERNS = [
+  'before', 'progress', 'completion', 'after',
+  'photo', 'pic', 'image', 'drone',
+];
+
+// Max file size to send to Claude (4 MB base64 ≈ ~3 MB raw)
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
+
 function setCors(response: NextResponse, requestOrigin?: string) {
   const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
-  const origin = requestOrigin && allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0] || '*';
+  const origin =
+    requestOrigin && allowedOrigins.includes(requestOrigin)
+      ? requestOrigin
+      : allowedOrigins[0] || '*';
   response.headers.set('Access-Control-Allow-Origin', origin);
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -20,117 +32,192 @@ export async function OPTIONS(request: Request) {
   return setCors(NextResponse.json({}), request.headers.get('origin') || undefined);
 }
 
+// ── Helper: download a single file from Supabase Storage ───────────────────
+async function downloadFromSupabase(filePath: string): Promise<Buffer | null> {
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
+
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .download(filePath);
+
+    if (error || !data) {
+      console.error(`[process-job] Download error for ${filePath}:`, error?.message);
+      return null;
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (err: any) {
+    console.error(`[process-job] Download exception for ${filePath}:`, err?.message);
+    return null;
+  }
+}
+
+// ── Helper: fetch formula config from Supabase ─────────────────────────────
+async function fetchFormulaConfig(): Promise<Record<string, any>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('formula_config')
+      .select('*')
+      .eq('singleton_key', 'STATIC')
+      .single();
+
+    if (error || !data) return {};
+
+    return {
+      feltCoverage: data.felt_coverage,
+      iceWaterCoverage: data.ice_water_coverage,
+      ridgeCapCoverage: data.ridge_cap_coverage,
+      dripEdgeLength: data.drip_edge_length,
+      coilNailsCoverage: data.coil_nails_coverage,
+      enableFelt: data.enable_felt,
+      enableIceWater: data.enable_ice_water,
+      enableRidgeCap: data.enable_ridge_cap,
+      enableDripEdge: data.enable_drip_edge,
+      enableCoilNails: data.enable_coil_nails,
+    };
+  } catch (err: any) {
+    console.warn('[process-job] Formula config fetch error (using defaults):', err?.message);
+    return {};
+  }
+}
+
+// ── Main pipeline ──────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   const origin = request.headers.get('origin') || undefined;
 
   try {
     const payload = await request.json();
-    const customerName = payload.customerName as string || 'Test Customer';
-    const address = payload.address as string || '123 Test St';
-    const email = payload.email as string || 'test@example.com';
-    const notes = payload.notes as string || '';
-    const uploadedFiles = payload.uploadedFiles as any[] || [];
+    const {
+      customerName = 'Customer',
+      address = '',
+      email = '',
+      notes: _notes = '',
+      uploadedFiles = [],
+    } = payload;
 
-    const blobUrls: string[] = [];
-    const documentContents: any[] = [];
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
-    const isMock = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project');
+    console.log(`[process-job] Starting job for "${customerName}" — ${uploadedFiles.length} file(s)`);
 
-    // Download all files in parallel
-    await Promise.all(uploadedFiles.map(async (file) => {
-      let buffer: Buffer | null = null;
+    // ── 1. Download files from Supabase & build Claude content blocks ─────
+    const claudeDocuments: any[] = [];
+    const photoNames: string[] = [];
 
-      if (!isMock) {
-        try {
-          const { data, error } = await supabaseAdmin.storage.from(bucket).download(file.path);
-          if (data) {
-            buffer = Buffer.from(await data.arrayBuffer());
-          } else {
-            console.error("Storage download failed:", error);
-          }
-          const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(file.path);
-          blobUrls.push(pubData.publicUrl);
-        } catch (e) {
-          console.error("Supabase Storage error:", e);
-        }
-      } else {
-        blobUrls.push('https://mock-storage.link/' + file.name);
+    for (const file of uploadedFiles) {
+      const fileName = (file.name || '').toLowerCase();
+
+      // Skip photos — note them but don't send to Claude
+      if (PHOTO_PATTERNS.some((p) => fileName.includes(p))) {
+        photoNames.push(file.name);
+        continue;
       }
 
-      if (isMock || !buffer) return;
+      const buffer = await downloadFromSupabase(file.path);
+      if (!buffer) continue;
 
-      const mime = file.mimeType || '';
-      if (mime === 'application/pdf') {
-        documentContents.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } });
-      } else if (mime.startsWith('image/')) {
-        const normalizedMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
-        documentContents.push({ type: 'image', source: { type: 'base64', media_type: normalizedMime, data: buffer.toString('base64') } });
-      } else if (mime === 'text/plain') {
-        documentContents.push({ type: 'text', text: buffer.toString('utf-8') });
-      } else if (mime.includes('wordprocessingml') || mime === 'application/msword' || mime.includes('officedocument')) {
-        const textContent = buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (textContent.length > 50) {
-          documentContents.push({ type: 'text', text: `[Content from Word document: ${file.name}]\n${textContent}` });
-        }
+      const mimeType: string = file.mimeType || '';
+
+      // Skip non-image files that exceed the limit — truncating a PDF makes it unreadable
+      if (buffer.length > MAX_FILE_BYTES && !mimeType.startsWith('image/')) {
+        console.warn(`[process-job] Skipping "${file.name}": ${(buffer.length / 1024 / 1024).toFixed(1)}MB exceeds the ${MAX_FILE_BYTES / 1024 / 1024}MB limit`);
+        continue;
       }
-    }));
 
-    // Step 1: Extract measurements from documents
-    const extractedData = await extractJobData(documentContents);
-    const data = extractedData || {};
-    const calculatedMaterials = await calculateAllMaterials(data);
-
-    // Step 2: Generate three output documents using business rules
-    const outputDocs = await generateOutputDocuments(data, calculatedMaterials);
-
-    let jobId = 'mock-job-id-' + Date.now();
-
-    if (!isMock) {
-      const { data: job, error: jobError } = await supabaseAdmin
-        .from('jobs')
-        .insert([{
-          customer_name: customerName,
-          address,
-          email,
-          notes,
-          extracted_data: data,
-          calculated_materials: calculatedMaterials,
-        }])
-        .select()
-        .single();
-
-      if (jobError) console.error("Error creating job in Supabase:", jobError);
-      if (job) jobId = job.id;
-
-      const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
-      supabaseAdmin.from('jobs').delete().lt('created_at', tenMinsAgo).then(({ error }) => {
-        if (error) console.error("Auto Cleanup Failed:", error);
-      });
+      if (mimeType === 'application/pdf') {
+        claudeDocuments.push({
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: buffer.toString('base64'),
+          },
+        });
+      } else if (mimeType.startsWith('image/')) {
+        const cappedImage = capImageBuffer(buffer);
+        const normalizedMime = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType;
+        claudeDocuments.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: normalizedMime,
+            data: cappedImage.toString('base64'),
+          },
+        });
+      } else if (mimeType === 'text/plain') {
+        claudeDocuments.push({
+          type: 'text',
+          text: buffer.toString('utf-8'),
+        });
+      }
     }
 
+    console.log(`[process-job] ${claudeDocuments.length} doc(s) prepared for Claude, ${photoNames.length} photo(s) noted`);
+
+    // ── 2. Call Claude AI for extraction ──────────────────────────────────
+    const {
+      extractedData,
+      crewInstructions,
+      laborItems,
+      materialNotes,
+    } = await processJobWithAI(claudeDocuments);
+
+    // Append photo names to notes if any
+    if (photoNames.length > 0) {
+      const photoNote = `Photos on file: ${photoNames.join(', ')}`;
+      extractedData.notes =
+        extractedData.notes && extractedData.notes !== 'N/A'
+          ? `${extractedData.notes} | ${photoNote}`
+          : photoNote;
+    }
+
+    // ── 3. Fetch formula config & calculate materials ────────────────────
+    const formulaConfig = await fetchFormulaConfig();
+    const calculatedMaterials = await calculateAllMaterials(extractedData, formulaConfig);
+
+    // ── 4. Generate PDF ──────────────────────────────────────────────────
     const pdfBuffer = await generatePDFBuffer(
-      { ...data, customerName, address },
+      { ...extractedData, customerName, address },
       calculatedMaterials,
-      outputDocs.crewInstructions,
-      outputDocs.laborItems,
-      outputDocs.materialNotes
+      crewInstructions,
+      laborItems,
+      materialNotes,
     );
-    const emailResult = await sendJobPDF(email, pdfBuffer, customerName);
 
-    return setCors(NextResponse.json({
-      success: true,
-      jobId,
-      extractedData: data,
-      calculatedMaterials,
-      crewInstructions: outputDocs.crewInstructions,
-      laborItems: outputDocs.laborItems,
-      materialNotes: outputDocs.materialNotes,
-      emailSent: emailResult.success,
-      pdfBase64: pdfBuffer.toString('base64')
-    }), origin);
+    // ── 5. Send email with PDF attached ──────────────────────────────────
+    let emailSent = false;
+    if (email) {
+      const emailResult = await sendJobPDF(email, pdfBuffer, customerName);
+      emailSent = emailResult.success;
+      if (!emailResult.success) {
+        console.warn('[process-job] Email failed:', emailResult.error);
+      }
+    }
 
+    console.log(`[process-job] Job complete — email ${emailSent ? 'sent' : 'skipped/failed'}`);
+
+    // ── 6. Return results ────────────────────────────────────────────────
+    return setCors(
+      NextResponse.json({
+        success: true,
+        jobId: 'job-' + Date.now(),
+        extractedData,
+        calculatedMaterials,
+        crewInstructions,
+        laborItems,
+        materialNotes,
+        emailSent,
+        pdfBase64: pdfBuffer.toString('base64'),
+      }),
+      origin,
+    );
   } catch (error: any) {
-    console.error("Process Job Error:", error);
-    return setCors(NextResponse.json({ error: error.message || "An error occurred." }, { status: 500 }), origin);
+    console.error('[process-job] Fatal error:', error?.message || error);
+    return setCors(
+      NextResponse.json(
+        { error: error.message || 'An error occurred during processing.' },
+        { status: 500 },
+      ),
+      origin,
+    );
   }
 }

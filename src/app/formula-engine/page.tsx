@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { Loader2, Save, ArrowLeft, Settings, AlertTriangle } from "lucide-react";
 
 const defaultConfig = {
-  feltCoverage: 4,
+  feltCoverage: 10,
   iceWaterCoverage: 60,
-  ridgeCapCoverage: 30,
+  ridgeCapCoverage: 31,
   dripEdgeLength: 10,
-  coilNailsCoverage: 20,
+  coilNailsCoverage: 12,
   enableFelt: true,
   enableIceWater: true,
   enableRidgeCap: true,
@@ -91,7 +91,7 @@ export default function FormulaEngine() {
                <input type="checkbox" checked={config?.enableFelt ?? true} onChange={e => setConfig({...config, enableFelt: e.target.checked})} className="w-5 h-5 accent-blue-500" />
             </div>
             <label className="block text-sm text-slate-400 mb-1">Squares covered per Roll</label>
-            <input type="number" value={config?.feltCoverage ?? 4} onChange={e => setConfig({...config, feltCoverage: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
+            <input type="number" value={config?.feltCoverage ?? 10} onChange={e => setConfig({...config, feltCoverage: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
           </div>
 
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
@@ -111,7 +111,7 @@ export default function FormulaEngine() {
                <input type="checkbox" checked={config?.enableRidgeCap ?? true} onChange={e => setConfig({...config, enableRidgeCap: e.target.checked})} className="w-5 h-5 accent-blue-500" />
             </div>
             <label className="block text-sm text-slate-400 mb-1">Linear Ft covered per Bundle</label>
-            <input type="number" value={config?.ridgeCapCoverage ?? 30} onChange={e => setConfig({...config, ridgeCapCoverage: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
+            <input type="number" value={config?.ridgeCapCoverage ?? 31} onChange={e => setConfig({...config, ridgeCapCoverage: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
           </div>
 
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
@@ -131,7 +131,7 @@ export default function FormulaEngine() {
                <input type="checkbox" checked={config?.enableCoilNails ?? true} onChange={e => setConfig({...config, enableCoilNails: e.target.checked})} className="w-5 h-5 accent-blue-500" />
             </div>
             <label className="block text-sm text-slate-400 mb-1">Squares covered per Box</label>
-            <input type="number" value={config?.coilNailsCoverage ?? 20} onChange={e => setConfig({...config, coilNailsCoverage: Number(e.target.value)})} className="w-1/2 bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
+            <input type="number" value={config?.coilNailsCoverage ?? 12} onChange={e => setConfig({...config, coilNailsCoverage: Number(e.target.value)})} className="w-1/2 bg-slate-900 border border-slate-600 rounded p-3 text-white outline-none focus:border-blue-500" />
           </div>
         </div>
       </div>
