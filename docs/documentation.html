@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Roof Auto AI — Technical Documentation</title>
+<style>
+  :root{
+    --bg:#0f172a;--surface:#1e293b;--surface2:#334155;--border:#334155;
+    --text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;--accent2:#10b981;
+    --warn:#f59e0b;--danger:#ef4444;--code-bg:#0f172a;
+    --font-sans:'Segoe UI',system-ui,sans-serif;
+    --font-mono:'Cascadia Code','Fira Code','Consolas',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:15px;line-height:1.7}
+
+  /* Layout */
+  .layout{display:flex;min-height:100vh}
+  .sidebar{width:260px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;padding:0 0 40px}
+  .content{flex:1;max-width:860px;padding:48px 56px;min-width:0}
+
+  /* Sidebar */
+  .sidebar-logo{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
+  .sidebar-logo h2{font-size:14px;font-weight:700;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+  .sidebar-logo p{font-size:11px;color:var(--muted);margin-top:2px}
+  .nav-section{padding:16px 20px 4px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .sidebar a{display:block;padding:6px 20px;font-size:13px;color:var(--muted);text-decoration:none;transition:.15s}
+  .sidebar a:hover{color:var(--text);background:rgba(255,255,255,.04)}
+  .sidebar a.active{color:var(--accent);border-left:2px solid var(--accent);padding-left:18px}
+
+  /* Typography */
+  h1{font-size:36px;font-weight:800;line-height:1.15;margin-bottom:12px;background:linear-gradient(135deg,#60a5fa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  h2{font-size:22px;font-weight:700;margin:52px 0 16px;padding-top:52px;border-top:1px solid var(--border);color:var(--text)}
+  h2:first-of-type{margin-top:0;padding-top:0;border-top:none}
+  h3{font-size:16px;font-weight:600;margin:28px 0 10px;color:var(--accent2)}
+  h4{font-size:14px;font-weight:600;margin:20px 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  p{margin-bottom:12px;color:var(--text)}
+  ul,ol{margin:10px 0 14px 22px}
+  li{margin-bottom:4px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  strong{color:#fff}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+
+  /* Badges */
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .badge-blue{background:#1e3a5f;color:#60a5fa;border:1px solid #2563eb}
+  .badge-green{background:#064e3b;color:#34d399;border:1px solid #059669}
+  .badge-yellow{background:#422006;color:#fbbf24;border:1px solid #d97706}
+  .badge-red{background:#450a0a;color:#f87171;border:1px solid #b91c1c}
+
+  /* Cards */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin:16px 0}
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:16px 0}
+  .card-sm{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px}
+  .card-sm h4{margin:0 0 6px;font-size:13px}
+  .card-sm p{font-size:13px;color:var(--muted);margin:0}
+
+  /* Code */
+  pre{background:var(--code-bg);border:1px solid #1e3a5f;border-radius:8px;padding:18px 20px;margin:14px 0;overflow-x:auto;font-family:var(--font-mono);font-size:13px;line-height:1.6}
+  code{font-family:var(--font-mono);font-size:13px;background:#1e293b;padding:1px 5px;border-radius:3px;color:#93c5fd}
+  pre code{background:none;padding:0;color:#e2e8f0}
+  .comment{color:#475569}
+  .kw{color:#818cf8}
+  .str{color:#34d399}
+  .num{color:#fb923c}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
+  th{text-align:left;padding:10px 14px;background:var(--surface2);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)}
+  td{padding:10px 14px;border-bottom:1px solid #1e293b;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+
+  /* Flow diagram */
+  .flow{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin:20px 0}
+  .flow-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:13px;text-align:center;min-width:120px}
+  .flow-step span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+  .flow-arrow{color:var(--muted);font-size:20px;padding:0 6px;flex-shrink:0}
+  .flow-step.highlight{border-color:var(--accent);background:#1e3a5f}
+
+  /* Callouts */
+  .callout{border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px;display:flex;gap:12px}
+  .callout-icon{flex-shrink:0;font-size:18px;line-height:1.4}
+  .callout-info{background:#0c2440;border:1px solid #1e40af}
+  .callout-warn{background:#3a1c00;border:1px solid #92400e}
+  .callout-danger{background:#3b0000;border:1px solid #991b1b}
+  .callout-success{background:#022c22;border:1px solid #065f46}
+
+  /* Hero section */
+  .hero{margin-bottom:40px}
+  .hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .version-chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--muted)}
+
+  /* Anchor */
+  h2[id],h3[id]{scroll-margin-top:24px}
+
+  /* Endpoint cards */
+  .endpoint{border:1px solid var(--border);border-radius:10px;margin:16px 0;overflow:hidden}
+  .endpoint-header{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--surface2)}
+  .method{font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;letter-spacing:.06em}
+  .method-post{background:#1e3a5f;color:#60a5fa}
+  .method-get{background:#064e3b;color:#34d399}
+  .method-put{background:#3d2a00;color:#fbbf24}
+  .endpoint-path{font-family:var(--font-mono);font-size:14px;color:#e2e8f0}
+  .endpoint-body{padding:16px 18px}
+
+  @media(max-width:768px){
+    .layout{flex-direction:column}
+    .sidebar{width:100%;height:auto;position:static}
+    .content{padding:24px 20px}
+    .flow{flex-direction:column;align-items:flex-start}
+    .flow-arrow{transform:rotate(90deg)}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h2>Roof Auto AI</h2>
+    <p>Technical Documentation</p>
+  </div>
+  <div class="nav-section">Overview</div>
+  <a href="#overview">Project Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#stack">Technology Stack</a>
+  <a href="#dataflow">Data Flow</a>
+
+  <div class="nav-section">API Reference</div>
+  <a href="#api-process-job">POST /api/process-job</a>
+  <a href="#api-get-upload-url">POST /api/get-upload-url</a>
+  <a href="#api-formulas">GET/PUT /api/formulas</a>
+
+  <div class="nav-section">Core Modules</div>
+  <a href="#mod-anthropic">anthropic.ts</a>
+  <a href="#mod-formulas">formulas.ts</a>
+  <a href="#mod-pdf">pdf.tsx</a>
+  <a href="#mod-email">email.ts</a>
+  <a href="#mod-supabase">supabase.ts</a>
+
+  <div class="nav-section">Configuration</div>
+  <a href="#env-vars">Environment Variables</a>
+  <a href="#formula-engine">Formula Engine</a>
+  <a href="#supabase-schema">Database Schema</a>
+
+  <div class="nav-section">Deployment</div>
+  <a href="#deploy-vercel">Vercel Deployment</a>
+  <a href="#deploy-local">Local Development</a>
+  <a href="#testing">Test Suite</a>
+
+  <div class="nav-section">Reference</div>
+  <a href="#business-rules">Business Rules</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="content">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Roof Auto AI</h1>
+    <p style="font-size:17px;color:var(--muted);max-width:600px">Automated roofing material order &amp; crew documentation system for <strong>Reliable Exteriors Group</strong>. Processes job documents in under 2 minutes using Claude AI.</p>
+    <div class="hero-meta">
+      <span class="version-chip">Next.js 16.2.4</span>
+      <span class="version-chip">Claude Sonnet 4.6</span>
+      <span class="version-chip">Supabase</span>
+      <span class="version-chip">React 19</span>
+      <span class="version-chip">TypeScript 5</span>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <h2 id="overview">Project Overview</h2>
+  <p>Roof Auto AI eliminates manual paperwork for roofing jobs. A user uploads job documents (Eagle View measurement reports, contracts, city/county code PDFs, site photos), and the system returns a fully calculated material order, crew instructions, labor items, and a PDF emailed to the designated recipient — all automatically.</p>
+
+  <div class="card-grid">
+    <div class="card-sm">
+      <h4>Problem Solved</h4>
+      <p>Manual material calculation and crew document creation takes hours per job and is error-prone.</p>
+    </div>
+    <div class="card-sm">
+      <h4>Solution</h4>
+      <p>AI extracts measurements from uploaded PDFs and calculates all material quantities via configurable formulas.</p>
+    </div>
+    <div class="card-sm">
+      <h4>Target User</h4>
+      <p>Reliable Exteriors Group — private, single-tenant application. Not public-facing.</p>
+    </div>
+    <div class="card-sm">
+      <h4>Performance</h4>
+      <p>End-to-end processing in 70–120 seconds per job. Job data auto-deleted from storage after 10 minutes.</p>
+    </div>
+  </div>
+
+  <h3>What the system produces per job</h3>
+  <ul>
+    <li><strong>Material Order Form</strong> — 12 calculated quantities (shingles, felt, ice &amp; water, drip edge, pipe jacks, ridge vent, nails, sealant, etc.)</li>
+    <li><strong>Crew Instructions</strong> — Ordered, site-specific steps based on jurisdiction, roof geometry, and contract type</li>
+    <li><strong>Labor Items</strong> — Billable charge line items extracted from the scope</li>
+    <li><strong>Material Notes</strong> — Color specs, supplement flags, code-required additions</li>
+    <li><strong>PDF</strong> — Generated and emailed automatically to <code>cheryl@therelexgroup.com</code></li>
+  </ul>
+
+  <!-- ARCHITECTURE -->
+  <h2 id="architecture">Architecture</h2>
+  <p>Roof Auto AI is a monolithic Next.js full-stack application. All backend logic runs as Next.js API Routes on Vercel serverless functions. There is no separate backend server.</p>
+
+  <pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                        VERCEL (Next.js 16)                      │
+│                                                                 │
+│  ┌──────────┐    ┌────────────────────────────────────────────┐ │
+│  │ /        │    │ API Routes (serverless, maxDuration=300s)  │ │
+│  │ Step 1   │───▶│ POST /api/get-upload-url                  │ │
+│  │ Step 2   │───▶│ POST /api/process-job                     │ │
+│  │ Step 3   │───▶│ GET|PUT /api/formulas                     │ │
+│  └──────────┘    └────────────────────────────────────────────┘ │
+│  ┌──────────────┐                                               │
+│  │/formula-     │                                               │
+│  │ engine       │                                               │
+│  └──────────────┘                                               │
+└─────────────────────────────────────────────────────────────────┘
+         │                │                    │
+         ▼                ▼                    ▼
+  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐
+  │  Supabase  │  │  Anthropic   │  │  Gmail SMTP      │
+  │  Storage   │  │  Claude API  │  │  (Nodemailer)    │
+  │  (files)   │  │  Sonnet 4.6  │  │  Port 465 SSL    │
+  └────────────┘  └──────────────┘  └──────────────────┘
+         │
+  ┌────────────┐
+  │  Supabase  │
+  │  Postgres  │
+  │ formula_   │
+  │  config    │
+  └────────────┘</code></pre>
+
+  <h3>Key Design Decisions</h3>
+  <ul>
+    <li><strong>Signed upload URLs</strong> — Files are uploaded directly from the browser to Supabase Storage using a signed URL, bypassing Vercel's 4.5 MB body size limit. Only the Supabase file path is sent to the API.</li>
+    <li><strong>Single Claude call</strong> — Data extraction AND crew document generation happen in one API call, cutting processing time roughly in half.</li>
+    <li><strong>No persistent job records</strong> — Files are stored in Supabase Storage for processing only. No job data is stored in the database. Storage cleanup is manual or via a cron job.</li>
+    <li><strong>Configurable formula engine</strong> — Coverage constants (felt rolls/SQ, drip edge length, etc.) are stored in a singleton database row and editable via <code>/formula-engine</code> without code changes.</li>
+  </ul>
+
+  <!-- STACK -->
+  <h2 id="stack">Technology Stack</h2>
+  <table>
+    <tr><th>Layer</th><th>Technology</th><th>Version</th><th>Purpose</th></tr>
+    <tr><td>Framework</td><td>Next.js (App Router)</td><td>16.2.4</td><td>Full-stack React, API routes, SSR</td></tr>
+    <tr><td>Runtime</td><td>React</td><td>19.2.4</td><td>UI rendering</td></tr>
+    <tr><td>Language</td><td>TypeScript</td><td>5</td><td>Type safety across frontend and backend</td></tr>
+    <tr><td>AI</td><td>@anthropic-ai/sdk</td><td>0.90.0</td><td>Claude Sonnet 4.6 for document extraction</td></tr>
+    <tr><td>Database</td><td>Supabase (PostgreSQL)</td><td>2.104.0</td><td>Formula config storage</td></tr>
+    <tr><td>File Storage</td><td>Supabase Storage</td><td>2.104.0</td><td>Temporary job document storage</td></tr>
+    <tr><td>Email</td><td>Nodemailer</td><td>8.0.5</td><td>SMTP email with PDF attachment</td></tr>
+    <tr><td>PDF</td><td>@react-pdf/renderer</td><td>4.5.1</td><td>Server-side PDF generation</td></tr>
+    <tr><td>Styling</td><td>Tailwind CSS</td><td>4</td><td>Utility-first CSS</td></tr>
+    <tr><td>Animation</td><td>Framer Motion</td><td>12.38.0</td><td>Page transitions and loading states</td></tr>
+    <tr><td>Icons</td><td>Lucide React</td><td>1.8.0</td><td>UI icons</td></tr>
+    <tr><td>Hosting</td><td>Vercel</td><td>—</td><td>Serverless deployment</td></tr>
+  </table>
+
+  <!-- DATA FLOW -->
+  <h2 id="dataflow">Data Flow</h2>
+  <p>The complete pipeline for a single job:</p>
+
+  <div class="flow">
+    <div class="flow-step"><span>Step 1</span>User fills form</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>Step 2</span>Select files</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight"><span>API</span>Get signed URLs</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>Browser</span>Upload to Supabase</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight"><span>API</span>process-job</div>
+  </div>
+  <div style="margin:4px 0 0 0;color:var(--muted);font-size:12px;padding-left:4px">▼</div>
+  <div class="flow" style="margin-top:4px">
+    <div class="flow-step"><span>Internal</span>Download files</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>Filter</span>Skip photos</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight"><span>Claude AI</span>Extract + generate</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>Formulas</span>Calculate materials</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight"><span>PDF</span>Generate</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight"><span>Email</span>Send to recipient</div>
+  </div>
+
+  <br>
+  <h3>File Filtering Rules</h3>
+  <p>Files whose names contain any of these patterns are <strong>excluded from the Claude API call</strong> (photos are noted in the job but not analyzed):</p>
+  <pre><code>['before', 'progress', 'completion', 'after', 'photo', 'pic', 'image', 'drone']</code></pre>
+  <p>Only <strong>PDFs, images, and plain text</strong> that pass this filter are sent to Claude. Individual files larger than <strong>4 MB</strong> (non-image) are skipped with a warning. Images over <strong>1.5 MB</strong> are automatically capped before encoding.</p>
+
+  <!-- API REFERENCE -->
+  <h2 id="api-process-job">API Reference — POST /api/process-job</h2>
+  <p>The main job processing pipeline. Maximum duration: <strong>300 seconds</strong>.</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method method-post">POST</span>
+      <span class="endpoint-path">/api/process-job</span>
+      <span class="badge badge-yellow" style="margin-left:auto">maxDuration: 300s</span>
+    </div>
+    <div class="endpoint-body">
+      <h4>Request Body (JSON)</h4>
+      <pre><code>{
+  <span class="str">"customerName"</span>: <span class="str">"Ann Scarritt"</span>,
+  <span class="str">"address"</span>:      <span class="str">"1833 Bluff St, Boulder, CO 80304"</span>,
+  <span class="str">"email"</span>:         <span class="str">"cheryl@therelexgroup.com"</span>,
+  <span class="str">"notes"</span>:         <span class="str">"Optional job notes"</span>,
+  <span class="str">"uploadedFiles"</span>: [
+    {
+      <span class="str">"path"</span>:     <span class="str">"jobs/1748123456789_EagleView.pdf"</span>,  <span class="comment">// Supabase Storage path</span>
+      <span class="str">"mimeType"</span>: <span class="str">"application/pdf"</span>,
+      <span class="str">"name"</span>:     <span class="str">"EagleView_Scarritt.pdf"</span>
+    }
+  ]
+}</code></pre>
+
+      <h4>Success Response (200)</h4>
+      <pre><code>{
+  <span class="str">"success"</span>: <span class="kw">true</span>,
+  <span class="str">"jobId"</span>:   <span class="str">"job-1748123456789"</span>,
+  <span class="str">"extractedData"</span>: {
+    <span class="str">"squares"</span>: <span class="num">21.67</span>, <span class="str">"pitch"</span>: <span class="str">"3/12"</span>, <span class="str">"ridges"</span>: <span class="num">24</span>, <span class="str">"hips"</span>: <span class="num">0</span>,
+    <span class="str">"valleys"</span>: <span class="num">0</span>, <span class="str">"rakes"</span>: <span class="num">142</span>, <span class="str">"eaves"</span>: <span class="num">146</span>, <span class="str">"pipeBoots"</span>: <span class="num">5</span>,
+    <span class="str">"insuranceCompany"</span>: <span class="str">"N/A"</span>, <span class="str">"claimNumber"</span>: <span class="str">"N/A"</span>,
+    <span class="str">"approvedAmount"</span>: <span class="str">"N/A"</span>, <span class="str">"deductible"</span>: <span class="str">"N/A"</span>,
+    <span class="str">"customerName"</span>: <span class="str">"Ann Scarritt"</span>, <span class="str">"address"</span>: <span class="str">"1833 Bluff St..."</span>,
+    <span class="str">"contractType"</span>: <span class="str">"Retail"</span>, <span class="str">"shingleProduct"</span>: <span class="str">"Tamko StormFighter Flex"</span>,
+    <span class="str">"shingleColor"</span>: <span class="str">"Rustic Cedar Brown"</span>, <span class="str">"ventilationStrategy"</span>: <span class="str">"Hybrid"</span>,
+    <span class="str">"hasSkylights"</span>: <span class="kw">false</span>, <span class="str">"hasChimney"</span>: <span class="kw">false</span>, <span class="str">"hasSolarPanels"</span>: <span class="kw">true</span>,
+    <span class="str">"notes"</span>: <span class="str">"Photos on file: 1_Before_Photos..."</span>
+  },
+  <span class="str">"calculatedMaterials"</span>: {
+    <span class="str">"shingles"</span>: <span class="num">24</span>, <span class="str">"felt"</span>: <span class="num">2</span>, <span class="str">"iceAndWater"</span>: <span class="num">3</span>, <span class="str">"ridgeCap"</span>: <span class="num">2</span>,
+    <span class="str">"dripEdge"</span>: <span class="num">38</span>, <span class="str">"dripEdgeRake"</span>: <span class="num">19</span>, <span class="str">"dripEdgeEave"</span>: <span class="num">19</span>,
+    <span class="str">"coilNails"</span>: <span class="num">2</span>, <span class="str">"starterStrip"</span>: <span class="num">3</span>, <span class="str">"pipeJacks"</span>: <span class="num">5</span>,
+    <span class="str">"ridgeVentSections"</span>: <span class="num">6</span>, <span class="str">"capNails"</span>: <span class="num">1</span>, <span class="str">"sealant"</span>: <span class="num">3</span>
+  },
+  <span class="str">"crewInstructions"</span>: [<span class="str">"Install permit..."</span>, <span class="str">"Tear-off..."</span>],
+  <span class="str">"laborItems"</span>:       [<span class="str">"Tear-off &amp; Install: 21.67 SQ"</span>],
+  <span class="str">"materialNotes"</span>:    [<span class="str">"Shingle: Tamko StormFighter Flex..."</span>],
+  <span class="str">"emailSent"</span>: <span class="kw">true</span>,
+  <span class="str">"pdfBase64"</span>: <span class="str">"JVBERi0x..."</span>   <span class="comment">// base64-encoded PDF</span>
+}</code></pre>
+
+      <h4>Error Response (500)</h4>
+      <pre><code>{ <span class="str">"error"</span>: <span class="str">"Claude AI error: ..."</span> }</code></pre>
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠️</span>
+    <div>Files are downloaded server-side from Supabase Storage using the <code>path</code> field. The browser never sends file content directly to this endpoint — only the storage path.</div>
+  </div>
+
+  <h2 id="api-get-upload-url">API Reference — POST /api/get-upload-url</h2>
+  <p>Generates a signed Supabase Storage upload URL so the browser can upload files directly without going through the Next.js server (avoids Vercel's 4.5 MB body limit).</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method method-post">POST</span>
+      <span class="endpoint-path">/api/get-upload-url</span>
+    </div>
+    <div class="endpoint-body">
+      <h4>Request Body</h4>
+      <pre><code>{ <span class="str">"filename"</span>: <span class="str">"EagleView_Scarritt.pdf"</span> }</code></pre>
+      <h4>Success Response</h4>
+      <pre><code>{
+  <span class="str">"signedUrl"</span>: <span class="str">"https://oaohufpux...supabase.co/storage/v1/object/upload/sign/..."</span>,
+  <span class="str">"token"</span>:     <span class="str">"eyJhbGci..."</span>,
+  <span class="str">"path"</span>:      <span class="str">"jobs/1748123456789_EagleView_Scarritt.pdf"</span>
+}</code></pre>
+      <h4>Notes</h4>
+      <ul>
+        <li>Filename is sanitized: only <code>[a-zA-Z0-9.\-_]</code> characters allowed; others replaced with <code>_</code></li>
+        <li>Path format: <code>jobs/{timestamp}_{sanitizedName}</code></li>
+        <li>Retries up to 3 times on socket errors with exponential backoff (500ms → 1s → 2s)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 id="api-formulas">API Reference — GET/PUT /api/formulas</h2>
+  <p>Reads and writes the singleton formula configuration row from Supabase Postgres.</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method method-get">GET</span>
+      <span class="endpoint-path">/api/formulas</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Returns the current formula config. If the table is missing, returns hardcoded defaults with <code>"source": "fallback"</code>. Never returns a 500 — always returns something usable.</p>
+      <pre><code>{
+  <span class="str">"success"</span>: <span class="kw">true</span>,
+  <span class="str">"source"</span>:  <span class="str">"db"</span>,          <span class="comment">// or "fallback" | "mock"</span>
+  <span class="str">"config"</span>: {
+    <span class="str">"feltCoverage"</span>:     <span class="num">10</span>,   <span class="comment">// SQ per roll</span>
+    <span class="str">"iceWaterCoverage"</span>: <span class="num">60</span>,   <span class="comment">// LF per roll</span>
+    <span class="str">"ridgeCapCoverage"</span>: <span class="num">31</span>,   <span class="comment">// LF per bundle</span>
+    <span class="str">"dripEdgeLength"</span>:   <span class="num">10</span>,   <span class="comment">// LF per piece (stick)</span>
+    <span class="str">"coilNailsCoverage"</span>:<span class="num">12</span>,   <span class="comment">// SQ per case</span>
+    <span class="str">"enableFelt"</span>:       <span class="kw">true</span>,
+    <span class="str">"enableIceWater"</span>:   <span class="kw">true</span>,
+    <span class="str">"enableRidgeCap"</span>:   <span class="kw">true</span>,
+    <span class="str">"enableDripEdge"</span>:   <span class="kw">true</span>,
+    <span class="str">"enableCoilNails"</span>:  <span class="kw">true</span>
+  }
+}</code></pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method method-put">PUT</span>
+      <span class="endpoint-path">/api/formulas</span>
+    </div>
+    <div class="endpoint-body">
+      <p>Upserts the formula config using <code>singleton_key = 'STATIC'</code>. Returns <strong>500</strong> if the database table is missing (does not silently pretend to save).</p>
+      <pre><code><span class="comment">// Request body: same shape as the "config" object above</span>
+{ <span class="str">"feltCoverage"</span>: <span class="num">10</span>, <span class="str">"iceWaterCoverage"</span>: <span class="num">60</span>, ... }
+
+<span class="comment">// Success response</span>
+{ <span class="str">"success"</span>: <span class="kw">true</span>, <span class="str">"config"</span>: { ... } }</code></pre>
+    </div>
+  </div>
+
+  <!-- MODULES -->
+  <h2 id="mod-anthropic">Core Module — anthropic.ts</h2>
+  <p><strong>Location:</strong> <code>src/lib/anthropic.ts</code></p>
+  <p>Handles all interaction with the Anthropic Claude API. Performs a <strong>single combined call</strong> that simultaneously extracts roof measurements from documents AND generates crew instructions, labor items, and material notes.</p>
+
+  <h3>Key Function: processJobWithAI</h3>
+  <pre><code><span class="kw">async function</span> processJobWithAI(documents: any[]): Promise&lt;{
+  extractedData:    any;       <span class="comment">// 19 fields from documents</span>
+  crewInstructions: string[];  <span class="comment">// ordered crew steps</span>
+  laborItems:       string[];  <span class="comment">// billable charges</span>
+  materialNotes:    string[];  <span class="comment">// supplement flags, color specs</span>
+}&gt;</code></pre>
+
+  <h4>Behavior</h4>
+  <ul>
+    <li>Uses <strong>Claude Sonnet 4.6</strong>, <code>max_tokens: 8192</code>, <code>temperature: 0</code> (deterministic)</li>
+    <li>System prompt embeds all business rules (crew instructions, code compliance, insurance scope mapping, material logic) from <code>training-data.ts</code></li>
+    <li>Returns <strong>one JSON object</strong> from Claude with two sections: <code>extracted</code> and <code>documents</code></li>
+    <li>If Claude's response is truncated (<code>stop_reason: 'max_tokens'</code>), attempts JSON repair by trimming to the last closing brace <code>}</code></li>
+    <li>If the API key is a placeholder, returns a hardcoded mock response instead of calling the API</li>
+    <li>On API error, throws — allowing the caller (<code>process-job</code>) to return a proper 500 to the user</li>
+  </ul>
+
+  <h3>capImageBuffer</h3>
+  <pre><code><span class="kw">function</span> capImageBuffer(buffer: Buffer): Buffer</code></pre>
+  <p>Caps image buffers at <strong>1.5 MB</strong> before base64 encoding. Large site photos are the primary cause of slow processing. PDFs are handled separately with a 4 MB skip threshold (not cap — truncating a PDF corrupts it).</p>
+
+  <h2 id="mod-formulas">Core Module — formulas.ts</h2>
+  <p><strong>Location:</strong> <code>src/lib/formulas.ts</code></p>
+  <p>Pure calculation engine. Takes extracted measurements and the formula config and returns all 13 material quantities.</p>
+
+  <table>
+    <tr><th>Material</th><th>Formula</th><th>Notes</th></tr>
+    <tr><td>Field Shingles</td><td><code>ceil(squares × 1.10)</code></td><td>10% waste, always on</td></tr>
+    <tr><td>Hip &amp; Ridge Cap</td><td><code>ceil((ridges + hips) × 1.30 / ridgeCapCoverage)</code></td><td>30% waste; configurable coverage</td></tr>
+    <tr><td>Starter Strip</td><td><code>max(3, ceil((eaves + rakes) / 113))</code></td><td>Minimum 3 bundles</td></tr>
+    <tr><td>Felt Underlayment</td><td><code>ceil(squares × 1.05 / feltCoverage)</code></td><td>5% waste; configurable coverage</td></tr>
+    <tr><td>Ice &amp; Water Shield</td><td><code>ceil((eaves + valleys) × 1.05 / iceWaterCoverage)</code></td><td>5% waste; configurable LF/roll</td></tr>
+    <tr><td>Drip Edge (Rake)</td><td><code>ceil(rakes × 1.30 / dripEdgeLength)</code></td><td>30% overlap factor</td></tr>
+    <tr><td>Drip Edge (Eave)</td><td><code>ceil(eaves × 1.30 / dripEdgeLength)</code></td><td>30% overlap factor</td></tr>
+    <tr><td>Pipe Jacks</td><td><code>pipeBoots</code></td><td>Direct count from extraction</td></tr>
+    <tr><td>Ridge Vent</td><td><code>ceil(ridges / 4)</code></td><td>4 LF per section</td></tr>
+    <tr><td>Coil Nails</td><td><code>ceil(squares / coilNailsCoverage)</code></td><td>Configurable SQ/case</td></tr>
+    <tr><td>Cap Nails</td><td><code>squares ≤ 25 ? 1 : 2</code></td><td>Boxes; threshold at 25 SQ</td></tr>
+    <tr><td>Sealant</td><td><code>max(3, ceil(valleys/40 + (ridges+hips)/60))</code></td><td>Minimum 3 tubes</td></tr>
+  </table>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ️</span>
+    <div>The five formula config values (<code>feltCoverage</code>, <code>iceWaterCoverage</code>, <code>ridgeCapCoverage</code>, <code>dripEdgeLength</code>, <code>coilNailsCoverage</code>) and five enable flags are stored in Supabase and editable via <code>/formula-engine</code>.</div>
+  </div>
+
+  <h2 id="mod-pdf">Core Module — pdf.tsx</h2>
+  <p><strong>Location:</strong> <code>src/lib/pdf.tsx</code></p>
+  <p>Generates a 3-section PDF using <code>@react-pdf/renderer</code> (server-side React rendering). The PDF contains:</p>
+  <ol>
+    <li>Header with job info (customer, address, claim #, approved amount, deductible)</li>
+    <li>Material Order Form — all 12 quantities in a formatted table</li>
+    <li>Crew Instructions — numbered list</li>
+    <li>Labor Items — numbered list</li>
+  </ol>
+  <p>Uses <code>renderToStream()</code> (not <code>renderToBuffer()</code>) and collects stream chunks into a <code>Buffer</code> for email attachment.</p>
+
+  <h2 id="mod-email">Core Module — email.ts</h2>
+  <p><strong>Location:</strong> <code>src/lib/email.ts</code></p>
+  <p>Sends the PDF via Nodemailer over Gmail SMTP. Configuration is driven entirely by environment variables.</p>
+
+  <pre><code><span class="comment">// Port logic:</span>
+<span class="comment">// SMTP_PORT=465 → secure:true  (implicit SSL, no STARTTLS)</span>
+<span class="comment">// SMTP_PORT=587 → secure:false (STARTTLS)</span>
+<span class="kw">const</span> isSSL = port === <span class="num">465</span>;
+
+<span class="comment">// Subject sanitization prevents email header injection:</span>
+<span class="kw">const</span> safeJobName = jobName
+  .replace(<span class="str">/[\r\n]/g</span>, <span class="str">' '</span>)
+  .replace(<span class="str">/[^\x20-\x7E]/g</span>, <span class="str">''</span>)
+  .trim();</code></pre>
+
+  <h2 id="mod-supabase">Core Module — supabase.ts</h2>
+  <p><strong>Location:</strong> <code>src/lib/supabase.ts</code></p>
+  <p>Exports a single <code>supabaseAdmin</code> client using the <strong>service role key</strong> (bypasses Row Level Security). <code>autoRefreshToken</code> and <code>persistSession</code> are both disabled since this is a server-only client.</p>
+
+  <!-- ENVIRONMENT VARIABLES -->
+  <h2 id="env-vars">Environment Variables</h2>
+  <p>All variables are stored in <code>.env.local</code> for local development and in Vercel's Environment Variables panel for production.</p>
+
+  <table>
+    <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td><span class="badge badge-red">Required</span></td><td>Anthropic API key starting with <code>sk-ant-api03-</code></td></tr>
+    <tr><td><code>SUPABASE_URL</code></td><td><span class="badge badge-red">Required</span></td><td>Supabase project URL, e.g. <code>https://xxx.supabase.co</code></td></tr>
+    <tr><td><code>SUPABASE_SERVICE_KEY</code></td><td><span class="badge badge-red">Required</span></td><td>Supabase service role key (full access, not anon key)</td></tr>
+    <tr><td><code>SUPABASE_STORAGE_BUCKET</code></td><td><span class="badge badge-yellow">Optional</span></td><td>Storage bucket name. Default: <code>roof-documents</code></td></tr>
+    <tr><td><code>SMTP_HOST</code></td><td><span class="badge badge-yellow">Optional</span></td><td>SMTP server hostname. Default: <code>smtp.gmail.com</code></td></tr>
+    <tr><td><code>SMTP_PORT</code></td><td><span class="badge badge-yellow">Optional</span></td><td>SMTP port. Default: <code>587</code>. Use <code>465</code> for SSL</td></tr>
+    <tr><td><code>SMTP_USER</code></td><td><span class="badge badge-red">Required</span></td><td>Gmail address used as the sender account</td></tr>
+    <tr><td><code>SMTP_PASS</code></td><td><span class="badge badge-red">Required</span></td><td>Gmail App Password (16 chars, not regular password)</td></tr>
+    <tr><td><code>CORS_ORIGINS</code></td><td><span class="badge badge-yellow">Optional</span></td><td>Comma-separated allowed origins. Default: <code>*</code></td></tr>
+  </table>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔐</span>
+    <div><strong>Never commit <code>.env.local</code> to git.</strong> It is listed in <code>.gitignore</code>. Rotate any credentials if they were accidentally exposed in git history.</div>
+  </div>
+
+  <!-- FORMULA ENGINE -->
+  <h2 id="formula-engine">Formula Engine</h2>
+  <p>The Formula Engine page (<code>/formula-engine</code>) allows non-technical staff to adjust the coverage constants used in material calculations — without any code changes or developer involvement.</p>
+
+  <h3>How to adjust a formula</h3>
+  <ol>
+    <li>Navigate to <code>/formula-engine</code></li>
+    <li>Adjust the numeric value (e.g. change <em>Felt Coverage</em> from <code>10</code> to <code>4</code> for 15 LB felt paper)</li>
+    <li>Toggle items on/off using the checkbox (e.g. disable Coil Nails if ordering separately)</li>
+    <li>Click <strong>Save Changes</strong></li>
+    <li>The change persists to Supabase and takes effect immediately on the next job processed</li>
+  </ol>
+
+  <div class="card">
+    <h4>Default Values</h4>
+    <table style="margin:0">
+      <tr><th>Field</th><th>Default</th><th>Unit</th><th>What to change it to</th></tr>
+      <tr><td>Felt Coverage</td><td>10</td><td>SQ per roll</td><td>Set to <strong>4</strong> if using 15 LB felt paper (4 SQ/roll)</td></tr>
+      <tr><td>Ice &amp; Water Coverage</td><td>60</td><td>LF per roll</td><td>Adjust if using a non-standard roll size</td></tr>
+      <tr><td>Ridge Cap Coverage</td><td>31</td><td>LF per bundle</td><td>Check the product's LF rating per bundle</td></tr>
+      <tr><td>Drip Edge Length</td><td>10</td><td>LF per piece</td><td>Standard 10 ft sticks — rarely changes</td></tr>
+      <tr><td>Coil Nails Coverage</td><td>12</td><td>SQ per case</td><td>Adjust based on nail brand/size spec sheet</td></tr>
+    </table>
+  </div>
+
+  <!-- DATABASE SCHEMA -->
+  <h2 id="supabase-schema">Database Schema</h2>
+  <p>Only one table exists. Run <code>docs/supabase_schema.sql</code> in the Supabase SQL Editor to create it.</p>
+
+  <pre><code><span class="kw">CREATE TABLE</span> formula_config (
+  id                 bigint       <span class="kw">PRIMARY KEY GENERATED ALWAYS AS IDENTITY</span>,
+  singleton_key      text         <span class="kw">UNIQUE NOT NULL DEFAULT</span> <span class="str">'STATIC'</span>,
+  felt_coverage      numeric      <span class="kw">NOT NULL DEFAULT</span> <span class="num">10</span>,
+  ice_water_coverage numeric      <span class="kw">NOT NULL DEFAULT</span> <span class="num">60</span>,
+  ridge_cap_coverage numeric      <span class="kw">NOT NULL DEFAULT</span> <span class="num">31</span>,
+  drip_edge_length   numeric      <span class="kw">NOT NULL DEFAULT</span> <span class="num">10</span>,
+  coil_nails_coverage numeric     <span class="kw">NOT NULL DEFAULT</span> <span class="num">12</span>,
+  enable_felt        boolean      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">true</span>,
+  enable_ice_water   boolean      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">true</span>,
+  enable_ridge_cap   boolean      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">true</span>,
+  enable_drip_edge   boolean      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">true</span>,
+  enable_coil_nails  boolean      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">true</span>,
+  updated_at         timestamptz  <span class="kw">DEFAULT now</span>()
+);
+
+<span class="comment">-- Seed the singleton row</span>
+<span class="kw">INSERT INTO</span> formula_config (singleton_key) <span class="kw">VALUES</span> (<span class="str">'STATIC'</span>)
+<span class="kw">ON CONFLICT</span> (singleton_key) <span class="kw">DO NOTHING</span>;</code></pre>
+
+  <!-- DEPLOYMENT -->
+  <h2 id="deploy-vercel">Vercel Deployment</h2>
+  <ol>
+    <li>Push code to GitHub (<code>main</code> branch is auto-deployed)</li>
+    <li>In Vercel → Settings → Environment Variables, add all 9 variables from the table above</li>
+    <li>Set <strong>CORS_ORIGINS</strong> to your Vercel production URL (e.g. <code>https://roof-auto.vercel.app</code>)</li>
+    <li>Ensure the Supabase Storage bucket <code>roof-documents</code> exists and has the service key granted full access</li>
+    <li>Run <code>docs/supabase_schema.sql</code> in Supabase SQL Editor if the <code>formula_config</code> table doesn't exist yet</li>
+    <li>Deploy — Vercel triggers automatically on push to <code>main</code></li>
+  </ol>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠️</span>
+    <div>The <code>process-job</code> route sets <code>maxDuration = 300</code>. This requires <strong>Vercel Pro</strong> or higher. Hobby plans limit functions to 60 seconds, which is insufficient for AI processing.</div>
+  </div>
+
+  <h2 id="deploy-local">Local Development</h2>
+  <pre><code><span class="comment"># Install dependencies</span>
+npm install
+
+<span class="comment"># Create .env.local with all required variables (see Environment Variables section)</span>
+cp .env.example .env.local  <span class="comment"># or create manually</span>
+
+<span class="comment"># Run development server</span>
+npm run dev
+<span class="comment"># → http://localhost:3000</span>
+
+<span class="comment"># Build for production (verifies TypeScript)</span>
+npm run build</code></pre>
+
+  <!-- TESTING -->
+  <h2 id="testing">Test Suite</h2>
+  <p>The project includes a rigorous 25-test end-to-end suite at <code>test-scarritt.mjs</code>.</p>
+  <pre><code><span class="comment"># Requires dev server running: npm run dev</span>
+node test-scarritt.mjs</code></pre>
+
+  <h3>Test Coverage</h3>
+  <table>
+    <tr><th>Section</th><th>Tests</th><th>What's verified</th></tr>
+    <tr><td>API Health</td><td>4</td><td>All endpoints return 200, CORS headers present, error handling on bad inputs</td></tr>
+    <tr><td>Formula Persistence</td><td>3</td><td>GET reads all fields as numbers, PUT saves to DB, read-back matches, restore original</td></tr>
+    <tr><td>File Upload</td><td>2</td><td>Special chars sanitized, empty filename returns error</td></tr>
+    <tr><td>Edge Cases</td><td>1</td><td>Empty file list returns valid (non-crashing) response with all 12 material fields</td></tr>
+    <tr><td>File Upload (Scarritt)</td><td>6</td><td>All 6 test PDFs upload successfully to Supabase</td></tr>
+    <tr><td>Full Job</td><td>1</td><td>process-job returns all required fields with correct shapes</td></tr>
+    <tr><td>Response Shape</td><td>6</td><td>All 12 quantities are numbers, squares &gt; 0, shingles math, crew strings, PDF magic bytes, photo filtering</td></tr>
+    <tr><td>Email &amp; Default</td><td>2</td><td>emailSent flag is true, source code contains hardcoded default email ≥ 2 times</td></tr>
+  </table>
+
+  <!-- BUSINESS RULES -->
+  <h2 id="business-rules">Business Rules</h2>
+  <p>All business logic is embedded in <code>src/lib/training-data.ts</code> as string constants that are injected into Claude's system prompt. This allows updating rules without changing application logic.</p>
+
+  <div class="card-grid">
+    <div class="card-sm"><h4>CREW_INSTRUCTION_RULES</h4><p>Ventilation, I&amp;W placement, flashing, tear-off, photography, safety, satellite/solar/skylight handling</p></div>
+    <div class="card-sm"><h4>CODE_COMPLIANCE_RULES</h4><p>Priority: County code &gt; Contract &gt; Insurance. Mid-roof inspection thresholds, permit requirements, decking standards</p></div>
+    <div class="card-sm"><h4>INSURANCE_SCOPE_MAPPING</h4><p>14 RFG insurance line item codes, exclusion rules, labor item categories</p></div>
+    <div class="card-sm"><h4>MATERIAL_LOGIC</h4><p>Conditions for including each material, coverage ratios, product specs (step flashing, drip edge, etc.)</p></div>
+  </div>
+
+  <!-- TROUBLESHOOTING -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+
+  <h3>Job fails with "Claude AI error"</h3>
+  <ul>
+    <li>Check <code>ANTHROPIC_API_KEY</code> is valid and not expired</li>
+    <li>Verify account has sufficient credits at <code>console.anthropic.com</code></li>
+    <li>Check Vercel function logs for the specific error message</li>
+  </ul>
+
+  <h3>Files fail to upload</h3>
+  <ul>
+    <li>Confirm the Supabase bucket <code>roof-documents</code> exists</li>
+    <li>Confirm <code>SUPABASE_SERVICE_KEY</code> (not the anon key) is used — service key bypasses RLS</li>
+    <li>Check that the bucket allows uploads from the service key (no restrictive RLS policy)</li>
+  </ul>
+
+  <h3>Email not delivered</h3>
+  <ul>
+    <li>Confirm Gmail 2FA is enabled and <code>SMTP_PASS</code> is an App Password (16 chars, spaces removed)</li>
+    <li>Verify <code>SMTP_PORT=465</code> and <code>SMTP_HOST=smtp.gmail.com</code></li>
+    <li>Check the Vercel function logs for the Nodemailer error code</li>
+    <li>Gmail may block "less secure app access" — App Passwords bypass this</li>
+  </ul>
+
+  <h3>Materials all show 0</h3>
+  <ul>
+    <li>Claude failed to extract measurements — check the <code>notes</code> field in <code>extractedData</code></li>
+    <li>The EagleView PDF was not included in the upload, or was filtered as a photo (check filename doesn't contain "photo", "before", etc.)</li>
+    <li>The file was too large (&gt;4 MB for PDFs) and was skipped — check Vercel function logs for "Skipping" warnings</li>
+  </ul>
+
+  <h3>Formula Engine shows "Error updating formulas"</h3>
+  <ul>
+    <li>The <code>formula_config</code> table doesn't exist — run <code>docs/supabase_schema.sql</code> in Supabase SQL Editor</li>
+    <li>The <code>SUPABASE_SERVICE_KEY</code> lacks write access to the table</li>
+  </ul>
+
+  <h3>Processing takes longer than 120 seconds</h3>
+  <ul>
+    <li>Contract PDF is very large — compress it before uploading (target &lt;2 MB)</li>
+    <li>Too many files sent to Claude — remove duplicate documents</li>
+    <li>Check if site photos are accidentally passing the filename filter (rename to include "photo" or "before")</li>
+  </ul>
+
+  <hr>
+  <p style="color:var(--muted);font-size:12px;text-align:center">Roof Auto AI — Reliable Exteriors Group — Confidential Internal Documentation</p>
+
+</main>
+</div>
+</body>
+</html>
