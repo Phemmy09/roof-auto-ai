@@ -124,9 +124,17 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 Rules:
 - Eagle View data takes highest priority for measurements
 - Use 0 for missing numbers, "N/A" for missing strings
-- crewInstructions: specific actionable crew steps (ventilation, I&W, flashing, photos, safety)
-- laborItems: billable charges (tear-off layers, story charges, steep slope, skylights, permits)
-- materialNotes: color matches, special products, code additions, supplement flags`;
+- ventilationStrategy: extract from the scope/insurance document ONLY — not from roof geometry. Turtle/static/box vents in scope → "Box". Ridge vent in scope → "Ridge". Both → "Hybrid". Unclear → "N/A".
+- crewInstructions: specific actionable crew steps derived ONLY from the CREW INSTRUCTION MASTER TEMPLATE in the business rules above. Do not invent steps not covered by the template.
+- laborItems: billable charges selected ONLY from the approved labor charges in INSURANCE SCOPE MAPPING above (tear-off, story charge, steep slope, skylight, chimney, permit, mid-roof inspection, decking, satellite, heat cable, solar, gutters). Do not invent labor items not in that list.
+- materialNotes: color matches, special products, code additions, supplement flags
+
+CRITICAL — Ventilation alignment: The ventilationStrategy you extract drives ALL ventilation content.
+- If ventilationStrategy = "Box": crew instructions MUST include installing static/box vents per EagleView count. Do NOT include ridge vent cut-in or ridge vent installation steps. Do NOT reference ridge vent in materialNotes.
+- If ventilationStrategy = "Ridge": crew instructions MUST include ridge vent cut-in. Do NOT include box/turtle vent installation steps.
+- If ventilationStrategy = "Hybrid": include both ridge and box vent steps.
+- If ventilationStrategy = "N/A": omit all ventilation installation steps.
+Every crew instruction and material note about ventilation MUST be consistent with the extracted ventilationStrategy.`;
 
   try {
     const contentBlocks: any[] = [...documents, { type: 'text', text: userPrompt }];

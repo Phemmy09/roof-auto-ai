@@ -27,13 +27,15 @@ const DEFAULTS: FormulaConfig = {
 export async function calculateAllMaterials(data: any, config?: Partial<FormulaConfig>) {
   const cfg: FormulaConfig = { ...DEFAULTS, ...config };
 
-  const squares   = Number(data.squares)   || 0;
-  const valleys   = Number(data.valleys)   || 0;
-  const eaves     = Number(data.eaves)     || 0;
-  const ridges    = Number(data.ridges)    || 0;
-  const hips      = Number(data.hips)      || 0;
-  const rakes     = Number(data.rakes)     || 0;
-  const pipeBoots = Number(data.pipeBoots) || 0;
+  const squares      = Number(data.squares)      || 0;
+  const valleys      = Number(data.valleys)      || 0;
+  const eaves        = Number(data.eaves)        || 0;
+  const ridges       = Number(data.ridges)       || 0;
+  const hips         = Number(data.hips)         || 0;
+  const rakes        = Number(data.rakes)        || 0;
+  const pipeBoots    = Number(data.pipeBoots)    || 0;
+  const sidewallLF   = Number(data.sidewallLF)   || 0;
+  const ventStrategy = String(data.ventilationStrategy || 'N/A');
 
   // Field shingles — 10% waste factor (not configurable, pure measurement)
   const shingles = Math.ceil(squares * 1.10);
@@ -71,8 +73,23 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   // Pipe jacks — direct count
   const pipeJacks = pipeBoots;
 
-  // Ridge vent sections (4 ft each)
-  const ridgeVentSections = ridges > 0 ? Math.ceil(ridges / 4) : 0;
+  // Ridge vent sections (4 ft each) — only when scope specifies Ridge or Hybrid strategy
+  const ridgeVentSections =
+    (ventStrategy === 'Ridge' || ventStrategy === 'Hybrid') && ridges > 0
+      ? Math.ceil(ridges / 4)
+      : 0;
+
+  // Box vents — count from extracted vents field, only when scope specifies Box or Hybrid
+  const boxVents =
+    ventStrategy === 'Box' || ventStrategy === 'Hybrid'
+      ? Number(data.vents) || 0
+      : 0;
+
+  // Step flashing — ~2.64 pieces per LF of sidewall, 45 pcs per bundle
+  const stepFlashing = sidewallLF > 0 ? Math.ceil((sidewallLF * 2.64) / 45) : 0;
+
+  // Touch-up paint — 2 cans whenever visible metal is installed
+  const touchUpPaint = dripEdgeRake > 0 || dripEdgeEave > 0 || stepFlashing > 0 ? 2 : 0;
 
   // Coil nails 1-1/4"
   const coilNails = cfg.enableCoilNails
@@ -97,6 +114,9 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
     starterStrip,
     pipeJacks,
     ridgeVentSections,
+    boxVents,
+    stepFlashing,
+    touchUpPaint,
     capNails,
     sealant,
   };

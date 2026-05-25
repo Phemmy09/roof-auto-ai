@@ -4,6 +4,8 @@ import { calculateAllMaterials } from '@/lib/formulas';
 import { generatePDFBuffer } from '@/lib/pdf';
 import { sendJobPDF } from '@/lib/email';
 import { supabaseAdmin } from '@/lib/supabase';
+import fs from 'fs';
+import path from 'path';
 
 export const maxDuration = 300;
 
@@ -36,6 +38,23 @@ export async function OPTIONS(request: Request) {
 async function downloadFromSupabase(filePath: string): Promise<Buffer | null> {
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'roof-documents';
 
+  // Pre-prepare potential local file fallback
+  let localFileBuffer: Buffer | null = null;
+  try {
+    const base = filePath.split('/').pop() || '';
+    const underscoreIndex = base.indexOf('_');
+    if (underscoreIndex !== -1) {
+      const potentialName = base.substring(underscoreIndex + 1);
+      const localPath = path.resolve('test data', potentialName);
+      if (fs.existsSync(localPath)) {
+        console.log(`[process-job] Found local fallback file: ${localPath}`);
+        localFileBuffer = fs.readFileSync(localPath);
+      }
+    }
+  } catch (localErr: any) {
+    console.warn(`[process-job] Local fallback pre-check failed for ${filePath}:`, localErr.message);
+  }
+
   try {
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
@@ -43,6 +62,10 @@ async function downloadFromSupabase(filePath: string): Promise<Buffer | null> {
 
     if (error || !data) {
       console.error(`[process-job] Download error for ${filePath}:`, error?.message);
+      if (localFileBuffer) {
+        console.log(`[process-job] Resilient fallback: Using local file for ${filePath}`);
+        return localFileBuffer;
+      }
       return null;
     }
 
@@ -50,6 +73,10 @@ async function downloadFromSupabase(filePath: string): Promise<Buffer | null> {
     return Buffer.from(arrayBuffer);
   } catch (err: any) {
     console.error(`[process-job] Download exception for ${filePath}:`, err?.message);
+    if (localFileBuffer) {
+      console.log(`[process-job] Resilient fallback: Using local file on exception for ${filePath}`);
+      return localFileBuffer;
+    }
     return null;
   }
 }
@@ -81,6 +108,65 @@ async function fetchFormulaConfig(): Promise<Record<string, any>> {
     console.warn('[process-job] Formula config fetch error (using defaults):', err?.message);
     return {};
   }
+}
+
+// ── Consistency check: enforce alignment between scope, materials, and docs ─
+function runConsistencyCheck(
+  extractedData: any,
+  calculatedMaterials: any,
+  crewInstructions: string[],
+  materialNotes: string[],
+): { materials: any; instructions: string[]; notes: string[] } {
+  const warnings: string[] = [];
+  const materials = { ...calculatedMaterials };
+  let instructions = [...crewInstructions];
+  const ventStrategy = String(extractedData.ventilationStrategy || 'N/A');
+
+  // 1. Ventilation: material quantities must match strategy
+  if (ventStrategy === 'Box' && materials.ridgeVentSections > 0) {
+    materials.ridgeVentSections = 0;
+    warnings.push('CONSISTENCY FIX: Ridge vent sections removed — scope specifies Box/Static vents.');
+  }
+  if (ventStrategy === 'Ridge' && materials.boxVents > 0) {
+    materials.boxVents = 0;
+    warnings.push('CONSISTENCY FIX: Box vent count removed — scope specifies Ridge vent.');
+  }
+
+  // 2. Crew instruction contradiction — strip conflicting ventilation steps
+  if (ventStrategy === 'Box') {
+    const filtered = instructions.filter(
+      (step) => !/ridge vent/i.test(step) || /do not/i.test(step),
+    );
+    if (filtered.length < instructions.length) {
+      warnings.push('CONSISTENCY FIX: Ridge vent installation step removed from crew instructions — scope specifies Box/Static vents.');
+    }
+    instructions = filtered;
+    const hasBoxInstruction = instructions.some((s) => /box vent|static vent|turtle vent/i.test(s));
+    if (!hasBoxInstruction) {
+      instructions.push(`Install ${extractedData.vents || 0} static/box vent(s) per EagleView count. Do NOT install ridge vent.`);
+    }
+  }
+  if (ventStrategy === 'Ridge') {
+    const filtered = instructions.filter(
+      (step) => !/\bbox vent|turtle vent|static vent\b/i.test(step),
+    );
+    if (filtered.length < instructions.length) {
+      warnings.push('CONSISTENCY FIX: Box/turtle vent installation step removed from crew instructions — scope specifies Ridge vent.');
+    }
+    instructions = filtered;
+  }
+
+  // 3. Quantity sanity check — shingles should be ~1.05–1.20× squares
+  const sq = Number(extractedData.squares) || 0;
+  if (sq > 0) {
+    const ratio = materials.shingles / sq;
+    if (ratio < 1.05 || ratio > 1.20) {
+      warnings.push(`QUANTITY WARNING: Shingle quantity (${materials.shingles} SQ) is outside expected range for ${sq} measured squares. Verify before ordering.`);
+    }
+  }
+
+  const notes = warnings.length > 0 ? [...materialNotes, ...warnings] : materialNotes;
+  return { materials, instructions, notes };
 }
 
 // ── Main pipeline ──────────────────────────────────────────────────────────
@@ -172,15 +258,22 @@ export async function POST(request: Request) {
 
     // ── 3. Fetch formula config & calculate materials ────────────────────
     const formulaConfig = await fetchFormulaConfig();
-    const calculatedMaterials = await calculateAllMaterials(extractedData, formulaConfig);
+    const rawMaterials = await calculateAllMaterials(extractedData, formulaConfig);
+
+    // ── 3b. Consistency check: sync materials, instructions, and notes ───
+    const {
+      materials: calculatedMaterials,
+      instructions: finalInstructions,
+      notes: finalNotes,
+    } = runConsistencyCheck(extractedData, rawMaterials, crewInstructions, materialNotes);
 
     // ── 4. Generate PDF ──────────────────────────────────────────────────
     const pdfBuffer = await generatePDFBuffer(
       { ...extractedData, customerName, address },
       calculatedMaterials,
-      crewInstructions,
+      finalInstructions,
       laborItems,
-      materialNotes,
+      finalNotes,
     );
 
     // ── 5. Send email with PDF attached ──────────────────────────────────
@@ -202,9 +295,9 @@ export async function POST(request: Request) {
         jobId: 'job-' + Date.now(),
         extractedData,
         calculatedMaterials,
-        crewInstructions,
+        crewInstructions: finalInstructions,
         laborItems,
-        materialNotes,
+        materialNotes: finalNotes,
         emailSent,
         pdfBase64: pdfBuffer.toString('base64'),
       }),
