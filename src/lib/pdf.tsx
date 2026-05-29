@@ -53,23 +53,16 @@ const JobPDFDocument = ({
         <Row label="Starter Strip" value={`${calculatedMaterials?.starterStrip || 0} bundles`} />
         <Row label="Synthetic Underlayment" value={`${calculatedMaterials?.felt || 0} rolls`} />
         <Row label="Ice & Water Shield" value={`${calculatedMaterials?.iceAndWater || 0} rolls`} />
-        <Row label="Drip Edge — Rake" value={`${calculatedMaterials?.dripEdgeRake || 0} pcs`} />
-        <Row label="Drip Edge — Eave" value={`${calculatedMaterials?.dripEdgeEave || 0} pcs`} />
+        <Row label="Drip Edge (Consolidated)" value={`${calculatedMaterials?.dripEdge || 0} pcs (Rake: ${calculatedMaterials?.dripEdgeRake || 0}, Eave: ${calculatedMaterials?.dripEdgeEave || 0})`} />
+        <Row label="Step Flashing" value={`${calculatedMaterials?.stepFlashing || 0} bundles`} />
+        <Row label="Counter Flashing / L-Flashing" value={`${calculatedMaterials?.counterFlashing || 0} set(s)`} />
+        <Row label="Touch-Up Paint" value={`${calculatedMaterials?.touchUpPaint || 0} cans`} />
         <Row label="Pipe Jacks" value={`${calculatedMaterials?.pipeJacks || 0} ea`} />
         {(calculatedMaterials?.ridgeVentSections || 0) > 0 && (
           <Row label="Ridge Vent (4 ft sections)" value={`${calculatedMaterials.ridgeVentSections} sections`} />
         )}
         {(calculatedMaterials?.boxVents || 0) > 0 && (
           <Row label="Box Vents (Lomanco 750)" value={`${calculatedMaterials.boxVents} ea`} />
-        )}
-        {(calculatedMaterials?.stepFlashing || 0) > 0 && (
-          <Row label="Step Flashing" value={`${calculatedMaterials.stepFlashing} bundles`} />
-        )}
-        {data?.hasChimney && (
-          <Row label="Counter Flashing (chimney)" value="1 set" />
-        )}
-        {(calculatedMaterials?.touchUpPaint || 0) > 0 && (
-          <Row label="Touch-Up Paint" value={`${calculatedMaterials.touchUpPaint} cans`} />
         )}
         <Row label={'Coil Nails 1-1/4"'} value={`${calculatedMaterials?.coilNails || 0} cases`} />
         <Row label="Cap Nails (Plastic)" value={`${calculatedMaterials?.capNails || 0} boxes`} />

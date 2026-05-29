@@ -88,8 +88,20 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   // Step flashing — ~2.64 pieces per LF of sidewall, 45 pcs per bundle
   const stepFlashing = sidewallLF > 0 ? Math.ceil((sidewallLF * 2.64) / 45) : 0;
 
-  // Touch-up paint — 2 cans whenever visible metal is installed
-  const touchUpPaint = dripEdgeRake > 0 || dripEdgeEave > 0 || stepFlashing > 0 ? 2 : 0;
+  // Counter flashing / L-flashing — 1 set if hasChimney is true
+  const counterFlashing = data.hasChimney ? 1 : 0;
+
+  // Touch-up paint — 2 cans whenever visible metal is installed (drip edge, pipe jacks, vents, step flashing, counter flashing)
+  const touchUpPaint =
+    dripEdgeRake > 0 ||
+    dripEdgeEave > 0 ||
+    stepFlashing > 0 ||
+    pipeJacks > 0 ||
+    boxVents > 0 ||
+    ridgeVentSections > 0 ||
+    counterFlashing > 0
+      ? 2
+      : 0;
 
   // Coil nails 1-1/4"
   const coilNails = cfg.enableCoilNails
@@ -116,6 +128,7 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
     ridgeVentSections,
     boxVents,
     stepFlashing,
+    counterFlashing,
     touchUpPaint,
     capNails,
     sealant,

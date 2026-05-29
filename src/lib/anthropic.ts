@@ -26,6 +26,51 @@ function capImageBuffer(buffer: Buffer): Buffer {
 }
 
 /**
+ * Robustly clean LLM JSON response by escaping raw newlines and control characters inside double quotes.
+ */
+function cleanRawJson(text: string): string {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
+
+  let inString = false;
+  let escapeNext = false;
+  let result = '';
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+    if (char === '\\') {
+      result += char;
+      escapeNext = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+    if (inString) {
+      if (char === '\n') {
+        result += '\\n';
+      } else if (char === '\r') {
+        result += '\\r';
+      } else if (char === '\t') {
+        result += '\\t';
+      } else {
+        result += char;
+      }
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+
+/**
  * Single-shot Claude call: extract measurements AND generate crew documents in one pass.
  * Merging both calls cuts total API wait time roughly in half.
  */
@@ -46,6 +91,7 @@ export async function processJobWithAI(documents: any[]): Promise<{
     hasSkylights: false, skylightCount: 0,
     hasHeatCable: false, hasChimney: false, hasSolarPanels: false,
     ventilationStrategy: 'N/A', sidewallLF: 0,
+    insuranceSquares: 0, insuranceVents: 0, insuranceDripEdgeLF: 0, insuranceRidgeLF: 0,
   };
   const emptyDocs = { crewInstructions: [], laborItems: [], materialNotes: [] };
 
@@ -62,6 +108,7 @@ export async function processJobWithAI(documents: any[]): Promise<{
         contractType: 'Insurance', shingleProduct: 'N/A', shingleColor: 'N/A',
         hasSkylights: false, skylightCount: 0, hasHeatCable: false,
         hasChimney: false, hasSolarPanels: false, ventilationStrategy: 'Ridge', sidewallLF: 0,
+        insuranceSquares: 30, insuranceVents: 4, insuranceDripEdgeLF: 110, insuranceRidgeLF: 40,
       },
       crewInstructions: ['Install per manufacturer specs', 'Take before/after photos'],
       laborItems: ['Standard tear-off'],
@@ -112,7 +159,11 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
     "hasChimney": boolean,
     "hasSolarPanels": boolean,
     "ventilationStrategy": "Ridge" | "Box" | "Hybrid" | "N/A",
-    "sidewallLF": number
+    "sidewallLF": number,
+    "insuranceSquares": number,
+    "insuranceVents": number,
+    "insuranceDripEdgeLF": number,
+    "insuranceRidgeLF": number
   },
   "documents": {
     "crewInstructions": ["instruction 1", "instruction 2"],
@@ -122,12 +173,16 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 }
 
 Rules:
-- Eagle View data takes highest priority for measurements
-- Use 0 for missing numbers, "N/A" for missing strings
-- ventilationStrategy: extract from the scope/insurance document ONLY — not from roof geometry. Turtle/static/box vents in scope → "Box". Ridge vent in scope → "Ridge". Both → "Hybrid". Unclear → "N/A".
-- crewInstructions: specific actionable crew steps derived ONLY from the CREW INSTRUCTION MASTER TEMPLATE in the business rules above. Do not invent steps not covered by the template.
-- laborItems: billable charges selected ONLY from the approved labor charges in INSURANCE SCOPE MAPPING above (tear-off, story charge, steep slope, skylight, chimney, permit, mid-roof inspection, decking, satellite, heat cable, solar, gutters). Do not invent labor items not in that list.
-- materialNotes: color matches, special products, code additions, supplement flags
+- Eagle View data takes highest priority for measurements.
+- Use 0 for missing numbers, "N/A" for missing strings.
+- ventilationStrategy: extract from the scope/insurance document ONLY — not from roof geometry. Scope of Work / Insurance estimate is the absolute, primary source of truth for venting. Do NOT assume ridge vents are needed just because there are "ridges" on the roof. Turtle/static/box vents in scope → "Box". Ridge vent in scope → "Ridge". Both → "Hybrid". Unclear → "N/A". If the scope specifies box/turtle/static vents, ventilationStrategy MUST be "Box".
+- insuranceSquares: extract the total squares specifically listed/approved in the insurance scope of work (e.g. tear off or install shingle line item quantity). Use 0 if retail or not found.
+- insuranceVents: extract the total number of box/turtle/static vents listed in the insurance scope of work. Use 0 if not found.
+- insuranceDripEdgeLF: extract the total linear feet (LF) of drip edge listed in the insurance scope of work. Use 0 if not found.
+- insuranceRidgeLF: extract the total linear feet (LF) of ridge vent listed in the insurance scope of work. Use 0 if not found.
+- crewInstructions: specific actionable crew steps derived ONLY from the CREW INSTRUCTION MASTER TEMPLATE in the business rules above. You MUST strictly restrict output to the approved templates. Do not invent steps not covered by the template.
+- laborItems: billable charges selected ONLY from the approved labor charges in INSURANCE SCOPE MAPPING above. Every item in laborItems MUST match or contain one of these approved categories (with custom numbers/quantities if applicable): Standard tear-off [number of layers] layer(s), Second story charge, Steep slope charge, Skylight replacement, Chimney flashing, Gutter replacement, Satellite dish reset, Heat cable R&R, Solar panel removal, Permit fee, Mid-roof inspection fee, Decking replacement. Do not invent or include other labor items.
+- materialNotes: color matches, special products, code additions, supplement flags.
 
 CRITICAL — Ventilation alignment: The ventilationStrategy you extract drives ALL ventilation content.
 - If ventilationStrategy = "Box": crew instructions MUST include installing static/box vents per EagleView count. Do NOT include ridge vent cut-in or ridge vent installation steps. Do NOT reference ridge vent in materialNotes.
@@ -161,7 +216,7 @@ Every crew instruction and material note about ventilation MUST be consistent wi
     const rawText = msg.content && msg.content.length > 0 && msg.content[0].type === 'text'
       ? msg.content[0].text
       : '{}';
-    const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const cleaned = cleanRawJson(rawText);
 
     let parsed;
     try {

@@ -110,63 +110,274 @@ async function fetchFormulaConfig(): Promise<Record<string, any>> {
   }
 }
 
-// ── Consistency check: enforce alignment between scope, materials, and docs ─
+// ── Consistency check: enforce alignment between scope, materials, labor, and crew docs ─
 function runConsistencyCheck(
   extractedData: any,
   calculatedMaterials: any,
   crewInstructions: string[],
+  laborItems: string[],
   materialNotes: string[],
-): { materials: any; instructions: string[]; notes: string[] } {
+): { materials: any; instructions: string[]; laborItems: string[]; notes: string[] } {
   const warnings: string[] = [];
   const materials = { ...calculatedMaterials };
   let instructions = [...crewInstructions];
-  const ventStrategy = String(extractedData.ventilationStrategy || 'N/A');
+  let finalLabor: string[] = [];
 
-  // 1. Ventilation: material quantities must match strategy
-  if (ventStrategy === 'Box' && materials.ridgeVentSections > 0) {
-    materials.ridgeVentSections = 0;
-    warnings.push('CONSISTENCY FIX: Ridge vent sections removed — scope specifies Box/Static vents.');
-  }
-  if (ventStrategy === 'Ridge' && materials.boxVents > 0) {
-    materials.boxVents = 0;
-    warnings.push('CONSISTENCY FIX: Box vent count removed — scope specifies Ridge vent.');
+  // 1. Robust Ventilation Strategy Normalization
+  let rawStrategy = String(extractedData.ventilationStrategy || 'N/A').trim();
+  let ventStrategy = 'N/A';
+  if (/hybrid/i.test(rawStrategy)) {
+    ventStrategy = 'Hybrid';
+  } else if (/box|turtle|static/i.test(rawStrategy)) {
+    ventStrategy = 'Box';
+  } else if (/ridge/i.test(rawStrategy)) {
+    ventStrategy = 'Ridge';
   }
 
-  // 2. Crew instruction contradiction — strip conflicting ventilation steps
+  // Override ventilation strategy if crew instructions specifically indicate DO NOT install ridge vent
+  const hasDoNotRidge = instructions.some(step => /do not install ridge vent/i.test(step) || /no ridge vent/i.test(step));
+  if (hasDoNotRidge && ventStrategy !== 'Box') {
+    ventStrategy = 'Box';
+    warnings.push('CONSISTENCY FIX: Ventilation Strategy synchronized to Box Vents based on crew instructions.');
+  }
+
+  extractedData.ventilationStrategy = ventStrategy;
+
+  // 2. Ventilation: Material quantities alignment
   if (ventStrategy === 'Box') {
-    const filtered = instructions.filter(
+    if (materials.ridgeVentSections > 0) {
+      materials.ridgeVentSections = 0;
+      warnings.push('CONSISTENCY FIX: Ridge vent sections removed — scope specifies Box/Static vents.');
+    }
+    const boxCount = Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
+    materials.boxVents = boxCount > 0 ? boxCount : 4;
+  } else if (ventStrategy === 'Ridge') {
+    if (materials.boxVents > 0) {
+      materials.boxVents = 0;
+      warnings.push('CONSISTENCY FIX: Box vent count removed — scope specifies Ridge vent.');
+    }
+    if (materials.ridgeVentSections === 0 && (Number(extractedData.ridges) || Number(extractedData.insuranceRidgeLF) || 0) > 0) {
+      const ridgeLen = Number(extractedData.ridges) || Number(extractedData.insuranceRidgeLF) || 0;
+      materials.ridgeVentSections = Math.ceil(ridgeLen / 4);
+    }
+  } else if (ventStrategy === 'Hybrid') {
+    // Keep both
+  } else {
+    materials.ridgeVentSections = 0;
+    materials.boxVents = 0;
+  }
+
+  // 3. Ventilation: Crew instruction alignment
+  if (ventStrategy === 'Box') {
+    instructions = instructions.filter(
       (step) => !/ridge vent/i.test(step) || /do not/i.test(step),
     );
-    if (filtered.length < instructions.length) {
-      warnings.push('CONSISTENCY FIX: Ridge vent installation step removed from crew instructions — scope specifies Box/Static vents.');
-    }
-    instructions = filtered;
     const hasBoxInstruction = instructions.some((s) => /box vent|static vent|turtle vent/i.test(s));
     if (!hasBoxInstruction) {
-      instructions.push(`Install ${extractedData.vents || 0} static/box vent(s) per EagleView count. Do NOT install ridge vent.`);
+      instructions.push(`Remove old vents and install ${materials.boxVents} static/box vent(s) per EagleView count. Do NOT install ridge vent.`);
     }
-  }
-  if (ventStrategy === 'Ridge') {
-    const filtered = instructions.filter(
-      (step) => !/\bbox vent|turtle vent|static vent\b/i.test(step),
+    const hasDoNotRidgeExact = instructions.some((s) => /do not install ridge vent/i.test(s));
+    if (!hasDoNotRidgeExact) {
+      instructions.push("Do NOT install ridge vent.");
+    }
+  } else if (ventStrategy === 'Ridge') {
+    instructions = instructions.filter(
+      (step) => !/\bbox vent|turtle vent|static vent\b/i.test(step) || /do not/i.test(step),
     );
-    if (filtered.length < instructions.length) {
-      warnings.push('CONSISTENCY FIX: Box/turtle vent installation step removed from crew instructions — scope specifies Ridge vent.');
+    const hasRidgeInstruction = instructions.some((s) => /ridge vent/i.test(s) && !/do not/i.test(s));
+    if (!hasRidgeInstruction) {
+      instructions.push(`Cut-in ridge line per sketch. Install ridge vent sections per material order. Do NOT install box/turtle vents.`);
     }
-    instructions = filtered;
+  } else if (ventStrategy === 'N/A') {
+    instructions = instructions.filter(
+      (step) => !/ridge vent|box vent|turtle vent|static/i.test(step) || /remove/i.test(step),
+    );
   }
 
-  // 3. Quantity sanity check — shingles should be ~1.05–1.20× squares
+  // 4. Ventilation: Notes alignment
+  let filteredNotes = materialNotes.filter((note) => {
+    if (ventStrategy === 'Box' && /ridge vent/i.test(note) && !/do not|exclude/i.test(note)) return false;
+    if (ventStrategy === 'Ridge' && /box vent|turtle vent|static vent/i.test(note) && !/do not|exclude/i.test(note)) return false;
+    if (ventStrategy === 'N/A' && /ridge vent|box vent|turtle vent|static/i.test(note)) return false;
+    return true;
+  });
+
+  if (ventStrategy === 'Box') {
+    if (!filteredNotes.some(note => /box vent/i.test(note))) {
+      filteredNotes.push('Scope specifies Box vents. Ridge vent is excluded.');
+    }
+  } else if (ventStrategy === 'Ridge') {
+    if (!filteredNotes.some(note => /ridge vent/i.test(note))) {
+      filteredNotes.push('Scope specifies Ridge vent. Box vents are excluded.');
+    }
+  }
+
+  // 5. Quantity Sanity Checks, Validations & Overrides
   const sq = Number(extractedData.squares) || 0;
   if (sq > 0) {
-    const ratio = materials.shingles / sq;
-    if (ratio < 1.05 || ratio > 1.20) {
-      warnings.push(`QUANTITY WARNING: Shingle quantity (${materials.shingles} SQ) is outside expected range for ${sq} measured squares. Verify before ordering.`);
+    const expectedShingles = Math.ceil(sq * 1.10);
+    if (materials.shingles !== expectedShingles) {
+      materials.shingles = expectedShingles;
+      warnings.push(`QUANTITY SYNC: Field shingles adjusted to match squares formula (${expectedShingles} SQ).`);
     }
   }
 
-  const notes = warnings.length > 0 ? [...materialNotes, ...warnings] : materialNotes;
-  return { materials, instructions, notes };
+  const sidewallLF = Number(extractedData.sidewallLF) || 0;
+
+  // Step flashing
+  const expectedStep = sidewallLF > 0 ? Math.ceil((sidewallLF * 2.64) / 45) : 0;
+  if (materials.stepFlashing !== expectedStep) {
+    materials.stepFlashing = expectedStep;
+  }
+  // If instructions or notes reference step flashing but it is calculated as 0, set to 1 bundle default
+  if (materials.stepFlashing === 0 && (instructions.some(s => /step flashing/i.test(s)) || filteredNotes.some(n => /step flashing/i.test(n)))) {
+    materials.stepFlashing = 1;
+    warnings.push('CONSISTENCY FIX: Step flashing set to 1 bundle based on crew instructions / notes.');
+  }
+
+  // Counter flashing
+  const expectedCounter = extractedData.hasChimney ? 1 : 0;
+  materials.counterFlashing = expectedCounter;
+  if (materials.counterFlashing === 0 && (instructions.some(s => /counter flashing/i.test(s) || /chimney flashing/i.test(s)) || filteredNotes.some(n => /counter flashing/i.test(n)))) {
+    materials.counterFlashing = 1;
+    warnings.push('CONSISTENCY FIX: Counter flashing set to 1 set based on crew instructions / notes.');
+  }
+
+  // Touch-up paint
+  const expectedPaint = (materials.dripEdge > 0 || materials.stepFlashing > 0 || materials.counterFlashing > 0 || materials.pipeJacks > 0 || materials.boxVents > 0 || materials.ridgeVentSections > 0) ? 2 : 0;
+  materials.touchUpPaint = expectedPaint;
+
+  // 6. Quantity validations (EagleView vs Insurance Scope)
+  const evSq = Number(extractedData.squares) || 0;
+  const insSq = Number(extractedData.insuranceSquares) || 0;
+  if (evSq > 0 && insSq > 0) {
+    const diffPct = Math.abs(evSq - insSq) / evSq;
+    if (diffPct > 0.10) {
+      warnings.push(`QUANTITY WARNING: Measured roof size (${evSq} SQ) and Insurance Scope shingles quantity (${insSq} SQ) differ by ${(diffPct * 100).toFixed(0)}%. Verify actual roof area.`);
+    }
+  }
+
+  const evVents = Number(extractedData.vents) || 0;
+  const insVents = Number(extractedData.insuranceVents) || 0;
+  if (evVents > 0 && insVents > 0 && evVents !== insVents) {
+    warnings.push(`QUANTITY WARNING: Measured vent count (${evVents}) differs from Insurance Scope vent count (${insVents}).`);
+  }
+
+  const evDripEdge = (Number(extractedData.eaves) || 0) + (Number(extractedData.rakes) || 0);
+  const insDripEdge = Number(extractedData.insuranceDripEdgeLF) || 0;
+  if (evDripEdge > 0 && insDripEdge > 0) {
+    const diffPct = Math.abs(evDripEdge - insDripEdge) / evDripEdge;
+    if (diffPct > 0.15) {
+      warnings.push(`QUANTITY WARNING: Measured drip edge length (${evDripEdge} LF) and Insurance Scope drip edge (${insDripEdge} LF) differ by ${(diffPct * 100).toFixed(0)}%.`);
+    }
+  }
+
+  const evRidge = Number(extractedData.ridges) || 0;
+  const insRidge = Number(extractedData.insuranceRidgeLF) || 0;
+  if (evRidge > 0 && insRidge > 0) {
+    const diffPct = Math.abs(evRidge - insRidge) / evRidge;
+    if (diffPct > 0.15) {
+      warnings.push(`QUANTITY WARNING: Measured ridge length (${evRidge} LF) and Insurance Scope ridge vent (${insRidge} LF) differ by ${(diffPct * 100).toFixed(0)}%.`);
+    }
+  }
+
+  // 7. Restrict Labor Items strictly to approved Master List
+  const approvedLabor = [
+    'Tear-off',
+    'Second story charge',
+    'Steep slope charge',
+    'Skylight replacement',
+    'Chimney flashing',
+    'Gutter replacement',
+    'Satellite dish reset',
+    'Heat cable R&R',
+    'Solar panel removal',
+    'Permit fee',
+    'Mid-roof inspection fee',
+    'Decking replacement'
+  ];
+
+  const laborSet = new Set<string>();
+
+  // Always include tear-off if squares > 0
+  if (sq > 0) {
+    laborSet.add('Tear-off');
+  }
+
+  // Steep slope check: pitch > 8/12
+  const pitchStr = String(extractedData.pitch || '');
+  const pitchNum = parseInt(pitchStr.split('/')[0]) || 0;
+  if (pitchNum > 8 || pitchStr.toLowerCase().includes('steep') || /9\/12|10\/12|11\/12|12\/12/i.test(pitchStr)) {
+    laborSet.add('Steep slope charge');
+  }
+
+  // Skylights
+  if (extractedData.hasSkylights || (Number(extractedData.skylightCount) || 0) > 0) {
+    laborSet.add('Skylight replacement');
+  }
+
+  // Chimney
+  if (extractedData.hasChimney) {
+    laborSet.add('Chimney flashing');
+  }
+
+  // Solar
+  if (extractedData.hasSolarPanels) {
+    laborSet.add('Solar panel removal');
+  }
+
+  // Heat Cable
+  if (extractedData.hasHeatCable) {
+    laborSet.add('Heat cable R&R');
+  }
+
+  // Now, merge in LLM's labor items but map them strictly to the approved list
+  for (const item of laborItems) {
+    const matched = approvedLabor.find(a => 
+      item.toLowerCase().includes(a.toLowerCase()) || 
+      a.toLowerCase().includes(item.toLowerCase())
+    );
+    if (matched) {
+      laborSet.add(matched);
+    } else {
+      if (item.toLowerCase().includes('story') || item.toLowerCase().includes('2nd') || item.toLowerCase().includes('two')) {
+        laborSet.add('Second story charge');
+      } else if (item.toLowerCase().includes('permit')) {
+        laborSet.add('Permit fee');
+      } else if (item.toLowerCase().includes('inspect')) {
+        laborSet.add('Mid-roof inspection fee');
+      } else if (item.toLowerCase().includes('deck') || item.toLowerCase().includes('plywood') || item.toLowerCase().includes('osb')) {
+        laborSet.add('Decking replacement');
+      } else if (item.toLowerCase().includes('gutter')) {
+        laborSet.add('Gutter replacement');
+      } else if (item.toLowerCase().includes('satellite') || item.toLowerCase().includes('dish')) {
+        laborSet.add('Satellite dish reset');
+      }
+    }
+  }
+
+  // Align labor items with ventilation strategy
+  let alignedLabor = Array.from(laborSet);
+  if (ventStrategy === 'Box') {
+    alignedLabor = alignedLabor.filter(item => !/ridge vent|rfg h00/i.test(item));
+  } else if (ventStrategy === 'Ridge') {
+    alignedLabor = alignedLabor.filter(item => !/box vent|rfg box/i.test(item));
+  } else if (ventStrategy === 'N/A') {
+    alignedLabor = alignedLabor.filter(item => !/ridge vent|box vent|rfg h00|rfg box/i.test(item));
+  }
+
+  finalLabor = alignedLabor;
+
+  // 8. General cleanup of crew instructions (ensure no contradictions)
+  if (!extractedData.hasChimney) {
+    instructions = instructions.filter(step => !/chimney/i.test(step));
+  }
+  if (!extractedData.hasSkylights && (Number(extractedData.skylightCount) || 0) === 0) {
+    instructions = instructions.filter(step => !/skylight/i.test(step));
+  }
+
+  const notes = warnings.length > 0 ? [...filteredNotes, ...warnings] : filteredNotes;
+  return { materials, instructions, laborItems: finalLabor, notes };
 }
 
 // ── Main pipeline ──────────────────────────────────────────────────────────
@@ -260,19 +471,20 @@ export async function POST(request: Request) {
     const formulaConfig = await fetchFormulaConfig();
     const rawMaterials = await calculateAllMaterials(extractedData, formulaConfig);
 
-    // ── 3b. Consistency check: sync materials, instructions, and notes ───
+    // ── 3b. Consistency check: sync materials, instructions, notes, and labor ───
     const {
       materials: calculatedMaterials,
       instructions: finalInstructions,
+      laborItems: finalLaborItems,
       notes: finalNotes,
-    } = runConsistencyCheck(extractedData, rawMaterials, crewInstructions, materialNotes);
+    } = runConsistencyCheck(extractedData, rawMaterials, crewInstructions, laborItems, materialNotes);
 
     // ── 4. Generate PDF ──────────────────────────────────────────────────
     const pdfBuffer = await generatePDFBuffer(
       { ...extractedData, customerName, address },
       calculatedMaterials,
       finalInstructions,
-      laborItems,
+      finalLaborItems,
       finalNotes,
     );
 
@@ -296,7 +508,7 @@ export async function POST(request: Request) {
         extractedData,
         calculatedMaterials,
         crewInstructions: finalInstructions,
-        laborItems,
+        laborItems: finalLaborItems,
         materialNotes: finalNotes,
         emailSent,
         pdfBase64: pdfBuffer.toString('base64'),
