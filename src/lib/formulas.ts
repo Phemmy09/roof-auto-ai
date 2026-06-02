@@ -85,23 +85,44 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
       ? Number(data.vents) || 0
       : 0;
 
-  // Step flashing — ~2.64 pieces per LF of sidewall, 45 pcs per bundle
-  const stepFlashing = sidewallLF > 0 ? Math.ceil((sidewallLF * 2.64) / 45) : 0;
+  // Step flashing — calculate pieces at 1 piece per course (exposure of 5 inches = 2.4 pieces per LF of sidewall), then bundles of 45 pcs
+  const stepFlashingPcs = sidewallLF > 0 ? Math.ceil(sidewallLF * 2.4) : 0;
+  const stepFlashing = Math.ceil(stepFlashingPcs / 45);
 
-  // Counter flashing / L-flashing — 1 set if hasChimney is true
-  const counterFlashing = data.hasChimney ? 1 : 0;
+  // Counter flashing / L-flashing — 1 set if hasChimney, hasMasonryWall, or hasRoofToWall is true
+  const counterFlashing = (data.hasChimney || data.hasMasonryWall || data.hasRoofToWall) ? 1 : 0;
 
-  // Touch-up paint — 2 cans whenever visible metal is installed (drip edge, pipe jacks, vents, step flashing, counter flashing)
-  const touchUpPaint =
+  // Skylights & Valley metal — automatically include valley metal rolls (20" x 50' rolls) if skylights present
+  const hasSkylights = !!data.hasSkylights || (Number(data.skylightCount) || 0) > 0;
+  const valleyMetal = hasSkylights ? 1 : 0;
+
+  // Turtle Vent Removal & OSB Sheathing — 1 sheet of 7/16" OSB per turtle vent removed
+  const ventsRemoved = (ventStrategy === 'Ridge' || ventStrategy === 'Hybrid')
+    ? (Number(data.vents) || Number(data.insuranceVents) || 0)
+    : 0;
+  const osbSheathing = ventsRemoved;
+
+  // Valleys & Mule-Hide JTS1 Joint Sealant — include for all roof valleys
+  const muleHideSealant = valleys > 0 ? Math.max(1, Math.ceil(valleys / 40)) : 0;
+
+  // Touch-up paint — 2 cans base if metal is present, +1 additional can if step flashing, counter flashing, or valley metal are added
+  let touchUpPaint = 0;
+  const hasMetal =
     dripEdgeRake > 0 ||
     dripEdgeEave > 0 ||
     stepFlashing > 0 ||
     pipeJacks > 0 ||
     boxVents > 0 ||
     ridgeVentSections > 0 ||
-    counterFlashing > 0
-      ? 2
-      : 0;
+    counterFlashing > 0 ||
+    valleyMetal > 0;
+
+  if (hasMetal) {
+    touchUpPaint = 2; // base
+    if (stepFlashing > 0 || counterFlashing > 0 || valleyMetal > 0) {
+      touchUpPaint += 1; // +1 additional can
+    }
+  }
 
   // Coil nails 1-1/4"
   const coilNails = cfg.enableCoilNails
@@ -111,8 +132,20 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   // Cap nails (plastic) — 1 box ≤25 SQ, 2 boxes >25 SQ
   const capNails = squares <= 25 ? 1 : 2;
 
-  // Geocel 2300 sealant — min 3 tubes
-  const sealant = Math.max(3, Math.ceil(valleys / 40 + (ridges + hips) / 60));
+  // Geocel 2300 sealant — min 3 tubes. Include additional tubes if box vents, step flashing, counter flashing, or valley metal are added.
+  let sealant = Math.max(3, Math.ceil(valleys / 40 + (ridges + hips) / 60));
+  if (counterFlashing > 0) {
+    sealant += counterFlashing * 1;
+  }
+  if (boxVents > 0) {
+    sealant += Math.ceil(boxVents / 2);
+  }
+  if (stepFlashing > 0) {
+    sealant += stepFlashing * 1;
+  }
+  if (valleyMetal > 0) {
+    sealant += valleyMetal * 1;
+  }
 
   return {
     shingles,
@@ -128,9 +161,14 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
     ridgeVentSections,
     boxVents,
     stepFlashing,
+    stepFlashingPcs,
     counterFlashing,
+    valleyMetal,
+    osbSheathing,
+    muleHideSealant,
     touchUpPaint,
     capNails,
     sealant,
   };
 }
+

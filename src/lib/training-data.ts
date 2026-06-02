@@ -132,8 +132,8 @@ MATERIAL LOGIC — INCLUSION CONDITIONS AND NOTES
 SHINGLES (Field): Always included. Add 10% waste. Class 4 IR preferred. 3 bundles per square.
 HIP & RIDGE SHINGLES: Include if Ridge LF + Hip LF > 0. Use 30% extra for waste/short runs. ~31 LF per bundle.
 STARTER STRIP: Always include. Min 3 bundles. ~113 LF per bundle.
-SYNTHETIC UNDERLAYMENT: Always include. 10 SQ per roll, 5% waste.
-ICE & WATER SHIELD: Include if climate/code requires. 6 ft coverage at eaves, 3 ft in valleys. Roll ~200 SF. 5% waste.
+SYNTHETIC UNDERLAYMENT: Always include. 10 SQ per roll, 5% waste. Account for double-felt city/county code requirements (e.g., doubles underlayment quantity).
+ICE & WATER SHIELD: Include if climate/code requires. 6 ft coverage at eaves, 3 ft in valleys. Roll ~200 SF. 5% waste. Ensure city and county code requirements are reflected in final quantities.
 DRIP EDGE (RAKE): Include if Rake LF > 0. 30% extra for overlaps/cuts. 10 ft sticks. Color match shingles/metal.
 DRIP EDGE (EAVE): Include if Eave LF > 0. Use gutter apron at eave edge. 10 ft sticks. Color match gutters/fascia.
 PIPE JACKS: Count from EagleView pipeBoots field. Color match to roof.
@@ -141,7 +141,12 @@ RIDGE VENT (4 ft sections): Include only if Ventilation Strategy = Ridge Vent. N
 BOX VENTS (Lomanco 750): Include only if Ventilation Strategy = Box Vents.
 COIL NAILS 1-1/4": Always include. ~1 case per 12 SQ.
 CAP NAILS (Plastic): Always include. 1 box if ≤25 SQ, 2 boxes if >25 SQ.
-GEOCEL 2300 SEALANT: Always include. Min 3 tubes. Formula: CEIL(valleys/40 + (ridges+hips)/60).
-STEP FLASHING: Include if sidewall/vertical LF > 0. ~2.64 pieces per vertical LF. 45 pcs per bundle.
-TOUCH-UP PAINT: Include when new/visible metal is installed. 2-3 cans per job.
+GEOCEL 2300 SEALANT: Always include. Min 3 tubes. Formula: CEIL(valleys/40 + (ridges+hips)/60). Include additional tubes of Geocel if box vents, step flashing, counter flashing, valley metal, or other metal components are added.
+STEP FLASHING: Include if sidewall/vertical LF > 0. Calculate at approximately 1 piece per shingle course (~2.4 pieces per linear foot of sidewall/vertical wall). 45 pcs per bundle. Ensure quantities appear in both the description and the material order summary.
+COUNTER FLASHING: Automatically include counter flashing (unit: pc) if a chimney, masonry wall, or roof-to-wall condition is identified.
+TOUCH-UP PAINT: Include when new/visible metal is installed. 2-3 cans per job base. Automatically include 1 additional can of touch-up paint if additional metal components are added (step flashing, counter flashing, drip edge, valley metal, etc.). Check SOW notes for project-specific paint requirements.
+SKYLIGHTS: If skylights are present, automatically include valley metal rolls (specification: 20” x 50’ rolls).
+TURTLE VENT REMOVAL: If turtle vents are being removed, include 7/16” OSB sheathing. Quantity: 1 sheet of 7/16” OSB per turtle vent removed.
+VALLEYS: For all roof valleys, include Mule-Hide JTS1 Joint Sealant.
 `;
+

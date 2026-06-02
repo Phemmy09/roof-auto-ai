@@ -55,7 +55,10 @@ const JobPDFDocument = ({
         <Row label="Ice & Water Shield" value={`${calculatedMaterials?.iceAndWater || 0} rolls`} />
         <Row label="Drip Edge (Consolidated)" value={`${calculatedMaterials?.dripEdge || 0} pcs (Rake: ${calculatedMaterials?.dripEdgeRake || 0}, Eave: ${calculatedMaterials?.dripEdgeEave || 0})`} />
         <Row label="Step Flashing" value={`${calculatedMaterials?.stepFlashing || 0} bundles`} />
-        <Row label="Counter Flashing / L-Flashing" value={`${calculatedMaterials?.counterFlashing || 0} set(s)`} />
+        <Row label="Counter Flashing / L-Flashing" value={`${calculatedMaterials?.counterFlashing || 0} pc(s)`} />
+        {(calculatedMaterials?.valleyMetal || 0) > 0 && (
+          <Row label="Valley Metal (20&quot; x 50' Roll)" value={`${calculatedMaterials.valleyMetal} roll(s)`} />
+        )}
         <Row label="Touch-Up Paint" value={`${calculatedMaterials?.touchUpPaint || 0} cans`} />
         <Row label="Pipe Jacks" value={`${calculatedMaterials?.pipeJacks || 0} ea`} />
         {(calculatedMaterials?.ridgeVentSections || 0) > 0 && (
@@ -64,9 +67,16 @@ const JobPDFDocument = ({
         {(calculatedMaterials?.boxVents || 0) > 0 && (
           <Row label="Box Vents (Lomanco 750)" value={`${calculatedMaterials.boxVents} ea`} />
         )}
+        {(calculatedMaterials?.osbSheathing || 0) > 0 && (
+          <Row label="7/16&quot; OSB Sheathing" value={`${calculatedMaterials.osbSheathing} sheet(s)`} />
+        )}
         <Row label={'Coil Nails 1-1/4"'} value={`${calculatedMaterials?.coilNails || 0} cases`} />
         <Row label="Cap Nails (Plastic)" value={`${calculatedMaterials?.capNails || 0} boxes`} />
         <Row label="Geocel 2300 Sealant" value={`${calculatedMaterials?.sealant || 0} tubes`} />
+        {(calculatedMaterials?.muleHideSealant || 0) > 0 && (
+          <Row label="Mule-Hide JTS1 Joint Sealant" value={`${calculatedMaterials.muleHideSealant} tube(s)`} />
+        )}
+
         {materialNotes && materialNotes.length > 0 && (
           <View style={{ marginTop: 6 }}>
             {materialNotes.map((note, i) => (

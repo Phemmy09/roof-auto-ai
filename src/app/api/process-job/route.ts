@@ -123,6 +123,28 @@ function runConsistencyCheck(
   let instructions = [...crewInstructions];
   let finalLabor: string[] = [];
 
+  // Helper function to extract a quantity from description/notes text using keywords
+  function parseQuantityFromText(lines: string[], itemKeywords: RegExp): number | null {
+    let maxVal = null;
+    for (const line of lines) {
+      if (itemKeywords.test(line)) {
+        // Look for patterns like "9 box vents", "install 9 box vents", "total of 9 box vents", or "9 pipe jacks"
+        const match = line.match(new RegExp(`(?:^|\\b)(\\d+)\\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?\\s*(?:of\\s*)?${itemKeywords.source}`, 'i')) ||
+                      line.match(new RegExp(`${itemKeywords.source}\\s*(?:total|quantity|order|install|need|require|added|addition)?[s]?\\s*(?:of\\s*)?(\\d+)`, 'i')) ||
+                      line.match(new RegExp(`(?:^|\\b)(\\d+)\\s*${itemKeywords.source}`, 'i'));
+        if (match) {
+          const val = parseInt(match[1] || match[2] || '');
+          if (!isNaN(val)) {
+            if (maxVal === null || val > maxVal) {
+              maxVal = val;
+            }
+          }
+        }
+      }
+    }
+    return maxVal;
+  }
+
   // 1. Robust Ventilation Strategy Normalization
   let rawStrategy = String(extractedData.ventilationStrategy || 'N/A').trim();
   let ventStrategy = 'N/A';
@@ -174,7 +196,7 @@ function runConsistencyCheck(
     );
     const hasBoxInstruction = instructions.some((s) => /box vent|static vent|turtle vent/i.test(s));
     if (!hasBoxInstruction) {
-      instructions.push(`Remove old vents and install ${materials.boxVents} static/box vent(s) per EagleView count. Do NOT install ridge vent.`);
+      instructions.push(`Remove old vents and install static/box vent(s) per EagleView count. Do NOT install ridge vent.`);
     }
     const hasDoNotRidgeExact = instructions.some((s) => /do not install ridge vent/i.test(s));
     if (!hasDoNotRidgeExact) {
@@ -212,7 +234,186 @@ function runConsistencyCheck(
     }
   }
 
-  // 5. Quantity Sanity Checks, Validations & Overrides
+  // 5. Build description list for programmatic reconciliation
+  const descriptionLines = [extractedData.notes || '', ...instructions, ...filteredNotes];
+
+  // 6. PROGRAMMATIC RECONCILIATION & VALIDATION CHECK (Point 11)
+
+  // Underlayment (Point 6): Account for city/county code requirements (e.g. double felt)
+  const isDoubleFelt = 
+    /double\s*[-]?\s*felt|double\s*[-]?\s*underlayment|2\s*layers\s*of\s*(?:felt|underlayment)|two\s*layers\s*of\s*(?:felt|underlayment)/i.test(extractedData.notes || '') ||
+    instructions.some(s => /double\s*[-]?\s*felt|double\s*[-]?\s*underlayment|2\s*layers\s*of\s*(?:felt|underlayment)|two\s*layers\s*of\s*(?:felt|underlayment)/i.test(s)) ||
+    filteredNotes.some(n => /double\s*[-]?\s*felt|double\s*[-]?\s*underlayment|2\s*layers\s*of\s*(?:felt|underlayment)|two\s*layers\s*of\s*(?:felt|underlayment)/i.test(n));
+
+  if (isDoubleFelt) {
+    const squares = Number(extractedData.squares) || 0;
+    const doubleFeltRolls = Math.ceil(((squares * 1.05) / 10) * 2);
+    if (materials.felt < doubleFeltRolls) {
+      materials.felt = doubleFeltRolls;
+      warnings.push(`QUANTITY SYNC: Synthetic underlayment doubled to ${doubleFeltRolls} rolls for double-felt code requirement.`);
+    }
+  }
+  const parsedFelt = parseQuantityFromText(descriptionLines, /underlayment|felt|rolls\s*of\s*underlayment/i);
+  if (parsedFelt !== null && parsedFelt > materials.felt) {
+    materials.felt = parsedFelt;
+    warnings.push(`RECONCILIATION: Synthetic underlayment adjusted to match description count (${parsedFelt} rolls).`);
+  }
+
+  // Ice & Water Shield (Point 7): Reconcile with description code requirements
+  const parsedIWS = parseQuantityFromText(descriptionLines, /ice\s*&\s*water|ice\s*and\s*water|i&w|rolls\s*of\s*ice/i);
+  if (parsedIWS !== null && parsedIWS > materials.iceAndWater) {
+    materials.iceAndWater = parsedIWS;
+    warnings.push(`RECONCILIATION: Ice & Water Shield adjusted to match description count (${parsedIWS} rolls).`);
+  }
+
+  // Step Flashing (Point 2): Reconcile bundle/pieces counts
+  const parsedStepBundles = parseQuantityFromText(descriptionLines, /bundle[s]?\s*of\s*step\s*flashing|step\s*flashing\s*bundle[s]?/i);
+  const parsedStepPcs = parseQuantityFromText(descriptionLines, /piece[s]?\s*of\s*step\s*flashing|step\s*flashing\s*piece[s]?|step\s*flashing/i);
+  
+  if (parsedStepBundles !== null && parsedStepBundles > materials.stepFlashing) {
+    materials.stepFlashing = parsedStepBundles;
+    materials.stepFlashingPcs = parsedStepBundles * 45;
+    warnings.push(`RECONCILIATION: Step Flashing adjusted to match description count (${parsedStepBundles} bundles).`);
+  } else if (parsedStepPcs !== null && parsedStepPcs > (materials.stepFlashingPcs || 0)) {
+    if (parsedStepPcs > 5) {
+      materials.stepFlashingPcs = parsedStepPcs;
+      materials.stepFlashing = Math.ceil(parsedStepPcs / 45);
+      warnings.push(`RECONCILIATION: Step Flashing adjusted to match description count (${parsedStepPcs} pieces / ${materials.stepFlashing} bundles).`);
+    } else {
+      materials.stepFlashing = parsedStepPcs;
+      materials.stepFlashingPcs = parsedStepPcs * 45;
+      warnings.push(`RECONCILIATION: Step Flashing adjusted to match description count (${parsedStepPcs} bundles).`);
+    }
+  }
+  
+  // Ensure step flashing has at least 1 bundle if mentioned in instructions/notes but is 0
+  if (materials.stepFlashing === 0 && (instructions.some(s => /step flashing/i.test(s)) || filteredNotes.some(n => /step flashing/i.test(n)))) {
+    materials.stepFlashing = 1;
+    materials.stepFlashingPcs = 45;
+    warnings.push('CONSISTENCY FIX: Step flashing set to 1 bundle based on crew instructions / notes.');
+  }
+
+  // Counter Flashing (Point 1): Auto include for chimney, masonry wall, or roof-to-wall
+  const hasChimney = !!extractedData.hasChimney;
+  const hasMasonryOrRoofToWall = 
+    /masonry|roof-to-wall|roof to wall|chimney/i.test(extractedData.notes || '') ||
+    instructions.some(s => /masonry|roof-to-wall|roof to wall|chimney|counter\s*flashing/i.test(s)) ||
+    filteredNotes.some(n => /masonry|roof-to-wall|roof to wall|chimney|counter\s*flashing/i.test(n));
+
+  if (hasChimney || hasMasonryOrRoofToWall) {
+    if (materials.counterFlashing === 0) {
+      materials.counterFlashing = 1;
+      warnings.push('CONSISTENCY FIX: Counter flashing automatically included due to chimney, masonry wall, or roof-to-wall condition.');
+    }
+  }
+  const parsedCounter = parseQuantityFromText(descriptionLines, /counter\s*flashing|counter\s*flash/i);
+  if (parsedCounter !== null && parsedCounter > materials.counterFlashing) {
+    materials.counterFlashing = parsedCounter;
+    warnings.push(`RECONCILIATION: Counter Flashing adjusted to match description count (${parsedCounter} pcs).`);
+  }
+
+  // Skylights & Valley Metal (Point 8)
+  const hasSkylights = !!extractedData.hasSkylights || (Number(extractedData.skylightCount) || 0) > 0 || instructions.some(s => /skylight/i.test(s));
+  if (hasSkylights && (materials.valleyMetal || 0) === 0) {
+    materials.valleyMetal = 1;
+    warnings.push('CONSISTENCY FIX: Valley metal (20" x 50\' roll) automatically included because skylights are present.');
+  }
+  const parsedValleyMetal = parseQuantityFromText(descriptionLines, /valley\s*metal|rolled\s*valley/i);
+  if (parsedValleyMetal !== null && parsedValleyMetal > (materials.valleyMetal || 0)) {
+    materials.valleyMetal = parsedValleyMetal;
+    warnings.push(`RECONCILIATION: Valley Metal rolls adjusted to match description count (${parsedValleyMetal} rolls).`);
+  }
+
+  // Box Vents (Point 3)
+  const parsedBoxVents = parseQuantityFromText(descriptionLines, /box\s*vent|turtle\s*vent|static\s*vent|slant\s*back/i);
+  if (parsedBoxVents !== null && parsedBoxVents > materials.boxVents) {
+    materials.boxVents = parsedBoxVents;
+    warnings.push(`RECONCILIATION: Box Vents adjusted to match description/upgrades count (${parsedBoxVents} ea).`);
+  }
+
+  // Pipe Jacks (Point 3)
+  const parsedPipeJacks = parseQuantityFromText(descriptionLines, /pipe\s*jack|pipe\s*boot|3\s*in\s*1|4\s*in\s*1/i);
+  if (parsedPipeJacks !== null && parsedPipeJacks > materials.pipeJacks) {
+    materials.pipeJacks = parsedPipeJacks;
+    warnings.push(`RECONCILIATION: Pipe Jacks adjusted to match description count (${parsedPipeJacks} ea).`);
+  }
+
+  // Turtle Vent Removal & OSB Sheathing (Point 9)
+  let ventsRemoved = 0;
+  const isRemovingVents = 
+    /remove\s*(?:old)?\s*(?:box|turtle|static)\s*vents/i.test(extractedData.notes || '') ||
+    instructions.some(s => /remove\s*(?:old)?\s*(?:box|turtle|static)\s*vents/i.test(s)) ||
+    filteredNotes.some(n => /remove\s*(?:old)?\s*(?:box|turtle|static)\s*vents/i.test(n));
+
+  if (isRemovingVents || ((ventStrategy === 'Ridge' || ventStrategy === 'Hybrid') && (Number(extractedData.vents) > 0 || Number(extractedData.insuranceVents) > 0))) {
+    ventsRemoved = Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
+    if (ventsRemoved === 0) {
+      const parsedRemoved = parseQuantityFromText(descriptionLines, /remove\s*(?:old)?\s*(\d+)\s*(?:box|turtle|static)\s*vents/i);
+      ventsRemoved = parsedRemoved !== null ? parsedRemoved : 4; // default to 4 if we know they are removed but count is 0
+    }
+  }
+  
+  if (ventsRemoved > 0 && (materials.osbSheathing || 0) === 0) {
+    materials.osbSheathing = ventsRemoved; // 1 sheet per vent removed
+    warnings.push(`CONSISTENCY FIX: ${ventsRemoved} sheet(s) of 7/16" OSB Sheathing included for removing ${ventsRemoved} turtle vent(s).`);
+  }
+  const parsedOSB = parseQuantityFromText(descriptionLines, /osb|sheathing|plywood\s*sheet/i);
+  if (parsedOSB !== null && parsedOSB > (materials.osbSheathing || 0)) {
+    materials.osbSheathing = parsedOSB;
+    warnings.push(`RECONCILIATION: OSB Sheathing sheets adjusted to match description count (${parsedOSB} sheets).`);
+  }
+
+  // Valleys & Mule-Hide JTS1 (Point 10)
+  const valleysLF = Number(extractedData.valleys) || 0;
+  if (valleysLF > 0 && (materials.muleHideSealant || 0) === 0) {
+    materials.muleHideSealant = Math.max(1, Math.ceil(valleysLF / 40));
+    warnings.push(`CONSISTENCY FIX: Mule-Hide JTS1 Joint Sealant automatically included for roof valleys.`);
+  }
+  const parsedMuleHide = parseQuantityFromText(descriptionLines, /mule[-]hide|jts1|joint\s*sealant/i);
+  if (parsedMuleHide !== null && parsedMuleHide > (materials.muleHideSealant || 0)) {
+    materials.muleHideSealant = parsedMuleHide;
+    warnings.push(`RECONCILIATION: Mule-Hide JTS1 Joint Sealant adjusted to match description count (${parsedMuleHide} tubes).`);
+  }
+
+  // Touch-Up Paint (Point 4): Recalculate based on final reconciled metals + extra can if additional metals, or parsed quantity
+  let paintCount = 0;
+  const hasMetals =
+    materials.dripEdge > 0 ||
+    materials.stepFlashing > 0 ||
+    materials.counterFlashing > 0 ||
+    materials.pipeJacks > 0 ||
+    materials.boxVents > 0 ||
+    materials.ridgeVentSections > 0 ||
+    (materials.valleyMetal && materials.valleyMetal > 0);
+
+  if (hasMetals) {
+    paintCount = 2; // base
+    if (materials.stepFlashing > 0 || materials.counterFlashing > 0 || (materials.valleyMetal && materials.valleyMetal > 0)) {
+      paintCount += 1;
+    }
+  }
+  const parsedPaint = parseQuantityFromText(descriptionLines, /paint|touch-up\s*paint|cans\s*of\s*(?:touch-up\s*)?paint/i);
+  if (parsedPaint !== null && parsedPaint > paintCount) {
+    paintCount = parsedPaint;
+    warnings.push(`RECONCILIATION: Touch-Up Paint adjusted to match description paint requirements (${parsedPaint} cans).`);
+  }
+  materials.touchUpPaint = paintCount;
+
+  // Geocel 2300 Sealant (Point 5): Scale base sealant with box vents, step, counter, valley metal additions
+  let expectedSealant = Math.max(3, Math.ceil(valleysLF / 40 + ((Number(extractedData.ridges) || 0) + (Number(extractedData.hips) || 0)) / 60));
+  if (materials.counterFlashing > 0) expectedSealant += materials.counterFlashing * 1;
+  if (materials.boxVents > 0) expectedSealant += Math.ceil(materials.boxVents / 2);
+  if (materials.stepFlashing > 0) expectedSealant += materials.stepFlashing * 1;
+  if (materials.valleyMetal > 0) expectedSealant += materials.valleyMetal * 1;
+
+  const parsedGeocel = parseQuantityFromText(descriptionLines, /geocel|sealant|tubes\s*of\s*sealant/i);
+  if (parsedGeocel !== null && parsedGeocel > expectedSealant) {
+    expectedSealant = parsedGeocel;
+    warnings.push(`RECONCILIATION: Geocel 2300 Sealant adjusted to match description count (${parsedGeocel} tubes).`);
+  }
+  materials.sealant = expectedSealant;
+
+  // Shingles waste quantity check
   const sq = Number(extractedData.squares) || 0;
   if (sq > 0) {
     const expectedShingles = Math.ceil(sq * 1.10);
@@ -222,32 +423,7 @@ function runConsistencyCheck(
     }
   }
 
-  const sidewallLF = Number(extractedData.sidewallLF) || 0;
-
-  // Step flashing
-  const expectedStep = sidewallLF > 0 ? Math.ceil((sidewallLF * 2.64) / 45) : 0;
-  if (materials.stepFlashing !== expectedStep) {
-    materials.stepFlashing = expectedStep;
-  }
-  // If instructions or notes reference step flashing but it is calculated as 0, set to 1 bundle default
-  if (materials.stepFlashing === 0 && (instructions.some(s => /step flashing/i.test(s)) || filteredNotes.some(n => /step flashing/i.test(n)))) {
-    materials.stepFlashing = 1;
-    warnings.push('CONSISTENCY FIX: Step flashing set to 1 bundle based on crew instructions / notes.');
-  }
-
-  // Counter flashing
-  const expectedCounter = extractedData.hasChimney ? 1 : 0;
-  materials.counterFlashing = expectedCounter;
-  if (materials.counterFlashing === 0 && (instructions.some(s => /counter flashing/i.test(s) || /chimney flashing/i.test(s)) || filteredNotes.some(n => /counter flashing/i.test(n)))) {
-    materials.counterFlashing = 1;
-    warnings.push('CONSISTENCY FIX: Counter flashing set to 1 set based on crew instructions / notes.');
-  }
-
-  // Touch-up paint
-  const expectedPaint = (materials.dripEdge > 0 || materials.stepFlashing > 0 || materials.counterFlashing > 0 || materials.pipeJacks > 0 || materials.boxVents > 0 || materials.ridgeVentSections > 0) ? 2 : 0;
-  materials.touchUpPaint = expectedPaint;
-
-  // 6. Quantity validations (EagleView vs Insurance Scope)
+  // 7. Quantity validations (EagleView vs Insurance Scope)
   const evSq = Number(extractedData.squares) || 0;
   const insSq = Number(extractedData.insuranceSquares) || 0;
   if (evSq > 0 && insSq > 0) {
@@ -281,7 +457,7 @@ function runConsistencyCheck(
     }
   }
 
-  // 7. Restrict Labor Items strictly to approved Master List
+  // 8. Restrict Labor Items strictly to approved Master List
   const approvedLabor = [
     'Tear-off',
     'Second story charge',
@@ -312,12 +488,12 @@ function runConsistencyCheck(
   }
 
   // Skylights
-  if (extractedData.hasSkylights || (Number(extractedData.skylightCount) || 0) > 0) {
+  if (hasSkylights) {
     laborSet.add('Skylight replacement');
   }
 
-  // Chimney
-  if (extractedData.hasChimney) {
+  // Chimney / masonry
+  if (hasChimney || hasMasonryOrRoofToWall) {
     laborSet.add('Chimney flashing');
   }
 
@@ -368,11 +544,11 @@ function runConsistencyCheck(
 
   finalLabor = alignedLabor;
 
-  // 8. General cleanup of crew instructions (ensure no contradictions)
-  if (!extractedData.hasChimney) {
+  // 9. General cleanup of crew instructions (ensure no contradictions)
+  if (!hasChimney && !hasMasonryOrRoofToWall) {
     instructions = instructions.filter(step => !/chimney/i.test(step));
   }
-  if (!extractedData.hasSkylights && (Number(extractedData.skylightCount) || 0) === 0) {
+  if (!hasSkylights) {
     instructions = instructions.filter(step => !/skylight/i.test(step));
   }
 
@@ -399,6 +575,15 @@ export async function POST(request: Request) {
     // ── 1. Download files from Supabase & build Claude content blocks ─────
     const claudeDocuments: any[] = [];
     const photoNames: string[] = [];
+
+    // Inject Job Notes if provided by the user in the UI field (Point 3 / Job Notes integration)
+    if (_notes && typeof _notes === 'string' && _notes.trim().length > 0) {
+      console.log(`[process-job] Injecting custom Job Notes into Claude's workspace: "${_notes.trim().substring(0, 60)}..."`);
+      claudeDocuments.push({
+        type: 'text',
+        text: `--- ADDITIONAL CUSTOM JOB NOTES (SPECIAL CIRCUMSTANCES / CUSTOMER UPGRADES & ADDITIONS) ---\n${_notes.trim()}\n--- END OF JOB NOTES ---`,
+      });
+    }
 
     for (const file of uploadedFiles) {
       const fileName = (file.name || '').toLowerCase();
