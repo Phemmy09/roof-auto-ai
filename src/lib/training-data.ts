@@ -6,14 +6,28 @@ CREW INSTRUCTION MASTER TEMPLATE — BUSINESS RULES
 
 PROPERTY SCOPE: Select one — House/Garage/Shed, House & Garage, House & Shed, House Only.
 
-ICE & WATER SHIELD (I&W) RULES:
-- Code standard (Denver/Colorado metro): Install I&W in all valleys only, unless local code differs.
-- Mountain regions often require I&W at eaves (24-36 inches).
-- Some cities require I&W around penetrations (pipe jacks, vents, solar tubes).
-- Insurance jobs: Install I&W only if it existed previously, unless insurance explicitly approves new.
-- Retail/IPW: "Install one full row of I&W" is standard; some jobs require TWO full rows.
-- If code says valleys → install valleys. If contract/IPW says "1 full row" → install 1 row.
-- If insurance says replace only if existing → follow that. Always document with photos.
+ICE & WATER SHIELD (I&W) CALCULATION HIERARCHY & RULES:
+Always calculate the required rolls of I&W using this exact hierarchy, showing your math:
+1. Calculate eave code requirement using EagleView:
+   - Formula: Eave LF × required coverage width (standard 3 ft, or 6 ft if mountain/double row) × pitch slope factor.
+   - Only apply if local code or location indicates eave coverage is required.
+2. Add I&W around required penetrations:
+   - Skylights: Add 30 sq ft per skylight unit.
+   - Solar tubes: Add 15 sq ft per solar tube unit.
+   - Chimneys: Add 20 sq ft per chimney.
+   - Other roof penetrations requiring membrane: Add 10 sq ft each.
+3. Add previously covered I&W areas from the SOW:
+   - If the SOW states that I&W was existing, replace all previously covered areas in addition to any current code-required locations.
+   - Valleys: Valley LF × 3 ft × pitch slope factor.
+   - Eaves: Eave LF × 3 ft (or 6 ft if double) × pitch slope factor.
+4. Add waste/overlap:
+   - Add 10–15% for laps, cuts, wrapping, and install waste to the total square footage.
+5. Convert to rolls:
+   - Divide total required square footage by 200 sq ft (standard roll coverage) and round up to the next whole roll.
+Show the step-by-step calculations in the description/notes section, and output the final roll count clearly (e.g. "Order minimum X rolls total"). The calculated quantity must be reflected in the material order form.
+Pitch slope factors reference:
+   - 3/12: 1.03 | 4/12: 1.05 | 5/12: 1.08 | 6/12: 1.12 | 7/12: 1.16 | 8/12: 1.20 | 9/12: 1.25 | 10/12: 1.30 | 11/12: 1.36 | 12/12: 1.41
+
 
 VENTILATION REQUIREMENTS:
 - Ridge Vent: Cut-in ridge line per sketch. Remove old turtle vents if ridge vent replaces them. Install ridge vent sections per material order. Seal old vent holes with SmartPlugs if needed.
@@ -133,7 +147,7 @@ SHINGLES (Field): Always included. Add 10% waste. Class 4 IR preferred. 3 bundle
 HIP & RIDGE SHINGLES: Include if Ridge LF + Hip LF > 0. Use 30% extra for waste/short runs. ~31 LF per bundle.
 STARTER STRIP: Always include. Min 3 bundles. ~113 LF per bundle.
 SYNTHETIC UNDERLAYMENT: Always include. 10 SQ per roll, 5% waste. Account for double-felt city/county code requirements (e.g., doubles underlayment quantity).
-ICE & WATER SHIELD: Include if climate/code requires. 6 ft coverage at eaves, 3 ft in valleys. Roll ~200 SF. 5% waste. Ensure city and county code requirements are reflected in final quantities.
+ICE & WATER SHIELD: Calculate using the I&W Calculation Hierarchy (Eave code requirement + penetrations + existing I&W from SOW + 10-15% waste, divided by 200 sq ft per roll). Show calculations in description and ensure the quantity matches the Material Order Form.
 DRIP EDGE (RAKE): Include if Rake LF > 0. 30% extra for overlaps/cuts. 10 ft sticks. Color match shingles/metal.
 DRIP EDGE (EAVE): Include if Eave LF > 0. Use gutter apron at eave edge. 10 ft sticks. Color match gutters/fascia.
 PIPE JACKS: Count from EagleView pipeBoots field. Color match to roof.

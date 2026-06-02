@@ -53,10 +53,41 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
     ? Math.ceil((squares * 1.05) / cfg.feltCoverage)
     : 0;
 
-  // Ice & water shield — LF of eave + valley runs, cfg.iceWaterCoverage LF per roll, 5% waste
-  const iceAndWater = cfg.enableIceWater
-    ? Math.ceil((eaves + valleys) * 1.05 / cfg.iceWaterCoverage)
+  // Find pitch factor
+  let pitchFactor = 1.0;
+  const pitchStr = String(data.pitch || '');
+  const pitchMatch = pitchStr.match(/(\d+)\/12/);
+  if (pitchMatch) {
+    const pitchVal = parseInt(pitchMatch[1]);
+    const multipliers: Record<number, number> = {
+      3: 1.03, 4: 1.05, 5: 1.08, 6: 1.12, 7: 1.16,
+      8: 1.20, 9: 1.25, 10: 1.30, 11: 1.36, 12: 1.41
+    };
+    pitchFactor = multipliers[pitchVal] || (pitchVal > 12 ? 1.45 : 1.0);
+  }
+
+  // Calculate Ice & Water Shield (rolls) using the 5-step hierarchy:
+  // 1. Calculate eave coverage (if required or existing, e.g. mountain region or explicitly mentioned)
+  const notesText = String(data.notes || '').toLowerCase();
+  const hasEaveRequirement = /eave|mountain/i.test(notesText) || /ice\s*&\s*water|i&w/i.test(notesText);
+  const eaveSqFt = hasEaveRequirement ? eaves * 3 * pitchFactor : 0;
+  
+  // 2. Add Valleys
+  const valleySqFt = valleys * 3 * pitchFactor;
+
+  // 3. Add penetrations
+  const skylightCount = (data.hasSkylights || (Number(data.skylightCount) || 0) > 0) ? (Number(data.skylightCount) || 1) : 0;
+  const skylightSqFt = skylightCount * 30;
+  const chimneySqFt = (data.hasChimney) ? 20 : 0;
+  const otherPenetrationSqFt = (Number(data.pipeBoots) || 0) * 10;
+
+  const totalIWSqFt = eaveSqFt + valleySqFt + skylightSqFt + chimneySqFt + otherPenetrationSqFt;
+
+  // 4. Add waste/overlap (12% average) and 5. Convert to rolls (divided by 200 SF per roll)
+  const iceAndWater = cfg.enableIceWater && totalIWSqFt > 0
+    ? Math.ceil((totalIWSqFt * 1.12) / 200)
     : 0;
+
 
   // Drip edge rake — 30% extra for overlaps
   const dripEdgeRake = cfg.enableDripEdge && rakes > 0

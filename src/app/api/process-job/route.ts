@@ -124,20 +124,90 @@ function runConsistencyCheck(
   let finalLabor: string[] = [];
 
   // Helper function to extract a quantity from description/notes text using keywords
-  function parseQuantityFromText(lines: string[], itemKeywords: RegExp): number | null {
+  function parseQuantityFromText(lines: string[], itemKeywords: RegExp, maxAllowed = 100): number | null {
     let maxVal = null;
+    const IGNORED_UNITS = /^\s*(?:sq(?:[a-z]*)\b|sf\b|s\.f\.|lf\b|l\.f\.|linear\s*feet\b|ft\b|feet\b|in\b|inch(?:es)?\b)/i;
+    const DECIMAL_CHECK = /^\.\d/;
+
     for (const line of lines) {
       if (itemKeywords.test(line)) {
-        // Look for patterns like "9 box vents", "install 9 box vents", "total of 9 box vents", or "9 pipe jacks"
-        const match = line.match(new RegExp(`(?:^|\\b)(\\d+)\\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?\\s*(?:of\\s*)?${itemKeywords.source}`, 'i')) ||
-                      line.match(new RegExp(`${itemKeywords.source}\\s*(?:total|quantity|order|install|need|require|added|addition)?[s]?\\s*(?:of\\s*)?(\\d+)`, 'i')) ||
-                      line.match(new RegExp(`(?:^|\\b)(\\d+)\\s*${itemKeywords.source}`, 'i'));
-        if (match) {
-          const val = parseInt(match[1] || match[2] || '');
-          if (!isNaN(val)) {
-            if (maxVal === null || val > maxVal) {
-              maxVal = val;
+        // 1. Remove all dollar/price values (e.g. $15,989, $500, $120.00)
+        let cleanLine = line.replace(/\$\d+(?:,\d{3})*(?:\.\d+)?/g, '');
+
+        // 2. Clean known fractions, brand names, and pipe jack sizes
+        cleanLine = cleanLine
+          .replace(/7\/16/g, '')
+          .replace(/geocel\s*2300/gi, 'geocel')
+          .replace(/lomanco\s*750/gi, 'lomanco')
+          .replace(/3\s*in\s*1/gi, '')
+          .replace(/4\s*in\s*1/gi, '');
+
+        let lineMax: number | null = null;
+
+        // Try direct keyword match first if the regex contains a capturing group for the number
+        // e.g. /remove\s*(?:old)?\s*(\d+)\s*(?:box|turtle|static)\s*vents/i
+        const directMatch = cleanLine.match(itemKeywords);
+        if (directMatch && directMatch[1] && !isNaN(parseInt(directMatch[1]))) {
+          const val = parseInt(directMatch[1]);
+          if (val <= maxAllowed) {
+            lineMax = val;
+          }
+        }
+
+        if (lineMax === null) {
+          // Define regexes in order of priority (most specific first)
+          const regexes = [
+            // 1. Total/final/order keywords followed by up to 3 words and a number, or number followed by units and total/final/order
+            { r: /(?:total|final|reconciled|order)(?:\s+[a-z:]+){0,3}\s*(?:=\s*|\s+)?(\d+)/gi, name: 'total_prefix' },
+            { r: /(\d+)\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\s*(?:total|final|reconciled|order)/gi, name: 'total_suffix' },
+            // 2. Minimum/install/need keywords followed by up to 3 words and a number, or number followed by units and minimum/install/need
+            { r: /(?:minimum|min|install|need|require|replace)(?:\s+[a-z:]+){0,3}\s*(?:=\s*|\s+)?(\d+)/gi, name: 'min_prefix' },
+            { r: /(\d+)\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\s*(?:minimum|min|install|need|require|replace)/gi, name: 'min_suffix' },
+            // 3. Proximity matches with the item's keywords
+            { r: new RegExp(`(?:^|\\b)(?<!\\/)(\\d+)\\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\\s*(?:of\\s*)?(?:${itemKeywords.source})[s]?`, 'gi'), name: 'keyword_prefix' },
+            { r: new RegExp(`(?:${itemKeywords.source})[s]?\\s*(?:total|quantity|order|install|need|require|added|addition)?[s]?\\s*(?:of\\s*)?(\\d+)`, 'gi'), name: 'keyword_suffix' },
+            { r: new RegExp(`(?:^|\\b)(?<!\\/)(\\d+)\\s*(?:${itemKeywords.source})[s]?`, 'gi'), name: 'keyword_simple' }
+          ];
+
+          for (const regObj of regexes) {
+            const regex = regObj.r;
+            let match;
+            regex.lastIndex = 0;
+            while ((match = regex.exec(cleanLine)) !== null) {
+              const valStr = match[1] || match[2] || '';
+              const val = parseInt(valStr);
+              if (!isNaN(val)) {
+                // Find what follows the matched number in cleanLine
+                const numIndex = match.index + match[0].indexOf(valStr);
+                const afterNum = cleanLine.substring(numIndex + valStr.length);
+
+                // Ignore if it's a decimal number (like .81 or .14)
+                if (DECIMAL_CHECK.test(afterNum)) {
+                  continue;
+                }
+
+                // Ignore if it is followed by area or length units
+                if (IGNORED_UNITS.test(afterNum)) {
+                  continue;
+                }
+
+                if (val <= maxAllowed) {
+                  if (lineMax === null || val > lineMax) {
+                    lineMax = val;
+                  }
+                }
+              }
             }
+            // If we found a value at this priority level, use it for this line
+            if (lineMax !== null) {
+              break;
+            }
+          }
+        }
+
+        if (lineMax !== null) {
+          if (maxVal === null || lineMax > maxVal) {
+            maxVal = lineMax;
           }
         }
       }
@@ -254,27 +324,27 @@ function runConsistencyCheck(
     }
   }
   const parsedFelt = parseQuantityFromText(descriptionLines, /underlayment|felt|rolls\s*of\s*underlayment/i);
-  if (parsedFelt !== null && parsedFelt > materials.felt) {
+  if (parsedFelt !== null) {
     materials.felt = parsedFelt;
     warnings.push(`RECONCILIATION: Synthetic underlayment adjusted to match description count (${parsedFelt} rolls).`);
   }
 
   // Ice & Water Shield (Point 7): Reconcile with description code requirements
   const parsedIWS = parseQuantityFromText(descriptionLines, /ice\s*&\s*water|ice\s*and\s*water|i&w|rolls\s*of\s*ice/i);
-  if (parsedIWS !== null && parsedIWS > materials.iceAndWater) {
+  if (parsedIWS !== null) {
     materials.iceAndWater = parsedIWS;
     warnings.push(`RECONCILIATION: Ice & Water Shield adjusted to match description count (${parsedIWS} rolls).`);
   }
 
   // Step Flashing (Point 2): Reconcile bundle/pieces counts
   const parsedStepBundles = parseQuantityFromText(descriptionLines, /bundle[s]?\s*of\s*step\s*flashing|step\s*flashing\s*bundle[s]?/i);
-  const parsedStepPcs = parseQuantityFromText(descriptionLines, /piece[s]?\s*of\s*step\s*flashing|step\s*flashing\s*piece[s]?|step\s*flashing/i);
+  const parsedStepPcs = parseQuantityFromText(descriptionLines, /piece[s]?\s*of\s*step\s*flashing|step\s*flashing\s*piece[s]?|step\s*flashing/i, 500);
   
-  if (parsedStepBundles !== null && parsedStepBundles > materials.stepFlashing) {
+  if (parsedStepBundles !== null) {
     materials.stepFlashing = parsedStepBundles;
     materials.stepFlashingPcs = parsedStepBundles * 45;
     warnings.push(`RECONCILIATION: Step Flashing adjusted to match description count (${parsedStepBundles} bundles).`);
-  } else if (parsedStepPcs !== null && parsedStepPcs > (materials.stepFlashingPcs || 0)) {
+  } else if (parsedStepPcs !== null) {
     if (parsedStepPcs > 5) {
       materials.stepFlashingPcs = parsedStepPcs;
       materials.stepFlashing = Math.ceil(parsedStepPcs / 45);
@@ -307,7 +377,7 @@ function runConsistencyCheck(
     }
   }
   const parsedCounter = parseQuantityFromText(descriptionLines, /counter\s*flashing|counter\s*flash/i);
-  if (parsedCounter !== null && parsedCounter > materials.counterFlashing) {
+  if (parsedCounter !== null) {
     materials.counterFlashing = parsedCounter;
     warnings.push(`RECONCILIATION: Counter Flashing adjusted to match description count (${parsedCounter} pcs).`);
   }
@@ -319,21 +389,21 @@ function runConsistencyCheck(
     warnings.push('CONSISTENCY FIX: Valley metal (20" x 50\' roll) automatically included because skylights are present.');
   }
   const parsedValleyMetal = parseQuantityFromText(descriptionLines, /valley\s*metal|rolled\s*valley/i);
-  if (parsedValleyMetal !== null && parsedValleyMetal > (materials.valleyMetal || 0)) {
+  if (parsedValleyMetal !== null) {
     materials.valleyMetal = parsedValleyMetal;
     warnings.push(`RECONCILIATION: Valley Metal rolls adjusted to match description count (${parsedValleyMetal} rolls).`);
   }
 
   // Box Vents (Point 3)
   const parsedBoxVents = parseQuantityFromText(descriptionLines, /box\s*vent|turtle\s*vent|static\s*vent|slant\s*back/i);
-  if (parsedBoxVents !== null && parsedBoxVents > materials.boxVents) {
+  if (parsedBoxVents !== null) {
     materials.boxVents = parsedBoxVents;
     warnings.push(`RECONCILIATION: Box Vents adjusted to match description/upgrades count (${parsedBoxVents} ea).`);
   }
 
   // Pipe Jacks (Point 3)
   const parsedPipeJacks = parseQuantityFromText(descriptionLines, /pipe\s*jack|pipe\s*boot|3\s*in\s*1|4\s*in\s*1/i);
-  if (parsedPipeJacks !== null && parsedPipeJacks > materials.pipeJacks) {
+  if (parsedPipeJacks !== null) {
     materials.pipeJacks = parsedPipeJacks;
     warnings.push(`RECONCILIATION: Pipe Jacks adjusted to match description count (${parsedPipeJacks} ea).`);
   }
@@ -358,7 +428,7 @@ function runConsistencyCheck(
     warnings.push(`CONSISTENCY FIX: ${ventsRemoved} sheet(s) of 7/16" OSB Sheathing included for removing ${ventsRemoved} turtle vent(s).`);
   }
   const parsedOSB = parseQuantityFromText(descriptionLines, /osb|sheathing|plywood\s*sheet/i);
-  if (parsedOSB !== null && parsedOSB > (materials.osbSheathing || 0)) {
+  if (parsedOSB !== null) {
     materials.osbSheathing = parsedOSB;
     warnings.push(`RECONCILIATION: OSB Sheathing sheets adjusted to match description count (${parsedOSB} sheets).`);
   }
@@ -370,7 +440,7 @@ function runConsistencyCheck(
     warnings.push(`CONSISTENCY FIX: Mule-Hide JTS1 Joint Sealant automatically included for roof valleys.`);
   }
   const parsedMuleHide = parseQuantityFromText(descriptionLines, /mule[-]hide|jts1|joint\s*sealant/i);
-  if (parsedMuleHide !== null && parsedMuleHide > (materials.muleHideSealant || 0)) {
+  if (parsedMuleHide !== null) {
     materials.muleHideSealant = parsedMuleHide;
     warnings.push(`RECONCILIATION: Mule-Hide JTS1 Joint Sealant adjusted to match description count (${parsedMuleHide} tubes).`);
   }
@@ -393,7 +463,7 @@ function runConsistencyCheck(
     }
   }
   const parsedPaint = parseQuantityFromText(descriptionLines, /paint|touch-up\s*paint|cans\s*of\s*(?:touch-up\s*)?paint/i);
-  if (parsedPaint !== null && parsedPaint > paintCount) {
+  if (parsedPaint !== null) {
     paintCount = parsedPaint;
     warnings.push(`RECONCILIATION: Touch-Up Paint adjusted to match description paint requirements (${parsedPaint} cans).`);
   }
@@ -407,7 +477,7 @@ function runConsistencyCheck(
   if (materials.valleyMetal > 0) expectedSealant += materials.valleyMetal * 1;
 
   const parsedGeocel = parseQuantityFromText(descriptionLines, /geocel|sealant|tubes\s*of\s*sealant/i);
-  if (parsedGeocel !== null && parsedGeocel > expectedSealant) {
+  if (parsedGeocel !== null) {
     expectedSealant = parsedGeocel;
     warnings.push(`RECONCILIATION: Geocel 2300 Sealant adjusted to match description count (${parsedGeocel} tubes).`);
   }

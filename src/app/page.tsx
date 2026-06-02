@@ -234,15 +234,18 @@ export default function Home() {
                         <div className="flex justify-between"><span className="text-slate-400">Drip Edge (Consolidated):</span> <span className="font-bold text-white">{result.calculatedMaterials?.dripEdge || 0} pcs (Rake: {result.calculatedMaterials?.dripEdgeRake || 0}, Eave: {result.calculatedMaterials?.dripEdgeEave || 0})</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Step Flashing:</span> <span className="font-bold text-white">{result.calculatedMaterials?.stepFlashing || 0} bundles</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Counter Flashing / L-Flashing:</span> <span className="font-bold text-white">{result.calculatedMaterials?.counterFlashing || 0} set(s)</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Valley Metal (20" x 50' Roll):</span> <span className="font-bold text-white">{result.calculatedMaterials?.valleyMetal || 0} roll(s)</span></div>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between"><span className="text-slate-400">Pipe Jacks:</span> <span className="font-bold text-white">{result.calculatedMaterials?.pipeJacks || 0} ea</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Ridge Vent (4 ft sections):</span> <span className="font-bold text-white">{result.calculatedMaterials?.ridgeVentSections || 0} sections</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Box Vents (Lomanco 750):</span> <span className="font-bold text-white">{result.calculatedMaterials?.boxVents || 0} ea</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">7/16" OSB Sheathing:</span> <span className="font-bold text-white">{result.calculatedMaterials?.osbSheathing || 0} sheet(s)</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Touch-Up Paint:</span> <span className="font-bold text-white">{result.calculatedMaterials?.touchUpPaint || 0} cans</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">{'Coil Nails 1-1/4"'}:</span> <span className="font-bold text-white">{result.calculatedMaterials?.coilNails || 0} cases</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Cap Nails (Plastic):</span> <span className="font-bold text-white">{result.calculatedMaterials?.capNails || 0} boxes</span></div>
                         <div className="flex justify-between"><span className="text-slate-400">Geocel 2300 Sealant:</span> <span className="font-bold text-white">{result.calculatedMaterials?.sealant || 0} tubes</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Mule-Hide JTS1 Joint Sealant:</span> <span className="font-bold text-white">{result.calculatedMaterials?.muleHideSealant || 0} tube(s)</span></div>
                       </div>
                     </div>
                     {result.materialNotes && result.materialNotes.length > 0 && (
