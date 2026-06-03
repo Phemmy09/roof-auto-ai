@@ -92,17 +92,21 @@ async function fetchFormulaConfig(): Promise<Record<string, any>> {
 
     if (error || !data) return {};
 
+    const x: Record<string, any> = data.extra_config || {};
+
     return {
-      feltCoverage: data.felt_coverage,
-      iceWaterCoverage: data.ice_water_coverage,
-      ridgeCapCoverage: data.ridge_cap_coverage,
-      dripEdgeLength: data.drip_edge_length,
+      // main columns
+      feltCoverage:      data.felt_coverage,
+      ridgeCapCoverage:  data.ridge_cap_coverage,
+      dripEdgeLength:    data.drip_edge_length,
       coilNailsCoverage: data.coil_nails_coverage,
-      enableFelt: data.enable_felt,
-      enableIceWater: data.enable_ice_water,
-      enableRidgeCap: data.enable_ridge_cap,
-      enableDripEdge: data.enable_drip_edge,
-      enableCoilNails: data.enable_coil_nails,
+      enableFelt:        data.enable_felt,
+      enableIceWater:    data.enable_ice_water,
+      enableRidgeCap:    data.enable_ridge_cap,
+      enableDripEdge:    data.enable_drip_edge,
+      enableCoilNails:   data.enable_coil_nails,
+      // extended settings from extra_config JSONB
+      ...x,
     };
   } catch (err: any) {
     console.warn('[process-job] Formula config fetch error (using defaults):', err?.message);
@@ -134,13 +138,16 @@ function runConsistencyCheck(
         // 1. Remove all dollar/price values (e.g. $15,989, $500, $120.00)
         let cleanLine = line.replace(/\$\d+(?:,\d{3})*(?:\.\d+)?/g, '');
 
-        // 2. Clean known fractions, brand names, and pipe jack sizes
+        // 2. Clean known fractions, brand/model names, and pipe jack sizes so they don't
+        //    sit between a number and the material keyword (e.g. "7 Lomanco 750 box vents"
+        //    → "7 box vents" so keyword_prefix can connect the count to the keyword).
         cleanLine = cleanLine
           .replace(/7\/16/g, '')
           .replace(/geocel\s*2300/gi, 'geocel')
-          .replace(/lomanco\s*750/gi, 'lomanco')
-          .replace(/3\s*in\s*1/gi, '')
-          .replace(/4\s*in\s*1/gi, '');
+          .replace(/lomanco\s*\d*/gi, '')   // "Lomanco 750" or bare "Lomanco"
+          .replace(/\blamanco\b/gi, '')     // Lamanco brand (ridge vent manufacturer)
+          .replace(/\b3[\s-]*in[\s-]*1\b/gi, '')   // "3-in-1" and "3 in 1" variants
+          .replace(/\b4[\s-]*in[\s-]*1\b/gi, '');
 
         let lineMax: number | null = null;
 
@@ -157,14 +164,17 @@ function runConsistencyCheck(
         if (lineMax === null) {
           // Define regexes in order of priority (most specific first)
           const regexes = [
-            // 1. Total/final/order keywords followed by up to 3 words and a number, or number followed by units and total/final/order
-            { r: /(?:total|final|reconciled|order)(?:\s+[a-z:]+){0,3}\s*(?:=\s*|\s+)?(\d+)/gi, name: 'total_prefix' },
+            // 1. Total/final keywords followed by up to 3 words and a number (handles "= N", ": N", " N")
+            // "order" removed: "flag to order 1 additional" would falsely capture 1 as a total.
+            // "ORDER MINIMUM N" still works because min_prefix catches "minimum".
+            { r: /(?:total|final|reconciled)(?:\s+[a-z:]+){0,3}\s*(?:[=:]\s*|\s+)?(\d+)/gi, name: 'total_prefix' },
             { r: /(\d+)\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\s*(?:total|final|reconciled|order)/gi, name: 'total_suffix' },
-            // 2. Minimum/install/need keywords followed by up to 3 words and a number, or number followed by units and minimum/install/need
-            { r: /(?:minimum|min|install|need|require|replace)(?:\s+[a-z:]+){0,3}\s*(?:=\s*|\s+)?(\d+)/gi, name: 'min_prefix' },
-            { r: /(\d+)\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\s*(?:minimum|min|install|need|require|replace)/gi, name: 'min_suffix' },
+            // 2. Minimum/require/replace keywords — "install" and "need" removed to prevent
+            //    false positives like "Install 7 box vents … OSB patches" → OSB=7
+            { r: /(?:minimum|min|require|replace)(?:\s+[a-z:]+){0,3}\s*(?:[=:]\s*|\s+)?(\d+)/gi, name: 'min_prefix' },
+            { r: /(\d+)\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\s*(?:minimum|min|require|replace)/gi, name: 'min_suffix' },
             // 3. Proximity matches with the item's keywords
-            { r: new RegExp(`(?:^|\\b)(?<!\\/)(\\d+)\\s*(?:pcs|pieces|cans|tubes|sheets|ea|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\\s*(?:of\\s*)?(?:${itemKeywords.source})[s]?`, 'gi'), name: 'keyword_prefix' },
+            { r: new RegExp(`(?:^|\\b)(?<!\\/)(\\d+)\\s*(?:pcs|pieces|cans|tubes|sheets|ea|units?|roll[s]?|bundle[s]?|box[es]?|set[s]?|sq)?[s]?\\s*(?:of\\s*)?(?:${itemKeywords.source})[s]?`, 'gi'), name: 'keyword_prefix' },
             { r: new RegExp(`(?:${itemKeywords.source})[s]?\\s*(?:total|quantity|order|install|need|require|added|addition)?[s]?\\s*(?:of\\s*)?(\\d+)`, 'gi'), name: 'keyword_suffix' },
             { r: new RegExp(`(?:^|\\b)(?<!\\/)(\\d+)\\s*(?:${itemKeywords.source})[s]?`, 'gi'), name: 'keyword_simple' }
           ];
@@ -316,19 +326,12 @@ function runConsistencyCheck(
     filteredNotes.some(n => /double\s*[-]?\s*felt|double\s*[-]?\s*underlayment|2\s*layers\s*of\s*(?:felt|underlayment)|two\s*layers\s*of\s*(?:felt|underlayment)/i.test(n));
 
   if (isDoubleFelt) {
-    const squares = Number(extractedData.squares) || 0;
-    const doubleFeltRolls = Math.ceil(((squares * 1.05) / 10) * 2);
+    const doubleFeltRolls = (materials.felt || 0) * 2;
     if (materials.felt < doubleFeltRolls) {
       materials.felt = doubleFeltRolls;
       warnings.push(`QUANTITY SYNC: Synthetic underlayment doubled to ${doubleFeltRolls} rolls for double-felt code requirement.`);
     }
   }
-  const parsedFelt = parseQuantityFromText(descriptionLines, /underlayment|felt|rolls\s*of\s*underlayment/i);
-  if (parsedFelt !== null) {
-    materials.felt = parsedFelt;
-    warnings.push(`RECONCILIATION: Synthetic underlayment adjusted to match description count (${parsedFelt} rolls).`);
-  }
-
   // Ice & Water Shield (Point 7): Reconcile with description code requirements
   const parsedIWS = parseQuantityFromText(descriptionLines, /ice\s*&\s*water|ice\s*and\s*water|i&w|rolls\s*of\s*ice/i);
   if (parsedIWS !== null) {
@@ -338,7 +341,9 @@ function runConsistencyCheck(
 
   // Step Flashing (Point 2): Reconcile bundle/pieces counts
   const parsedStepBundles = parseQuantityFromText(descriptionLines, /bundle[s]?\s*of\s*step\s*flashing|step\s*flashing\s*bundle[s]?/i);
-  const parsedStepPcs = parseQuantityFromText(descriptionLines, /piece[s]?\s*of\s*step\s*flashing|step\s*flashing\s*piece[s]?|step\s*flashing/i, 500);
+  // Narrow keyword: only match when pcs/pieces is directly tied to "step flashing" —
+  // prevents Geocel notes like "minimum 4-5 tubes … for step flashing" grabbing 4 as pieces.
+  const parsedStepPcs = parseQuantityFromText(descriptionLines, /piece[s]?\s*of\s*step\s*flashing|step\s*flashing\s*(?:piece[s]?|pcs)\b/i, 500);
   
   if (parsedStepBundles !== null) {
     materials.stepFlashing = parsedStepBundles;
@@ -364,11 +369,22 @@ function runConsistencyCheck(
   }
 
   // Counter Flashing (Point 1): Auto include for chimney, masonry wall, or roof-to-wall
+  // Guard: "no chimney" / "without chimney" in a negative context must NOT trigger this.
   const hasChimney = !!extractedData.hasChimney;
-  const hasMasonryOrRoofToWall = 
-    /masonry|roof-to-wall|roof to wall|chimney/i.test(extractedData.notes || '') ||
-    instructions.some(s => /masonry|roof-to-wall|roof to wall|chimney|counter\s*flashing/i.test(s)) ||
-    filteredNotes.some(n => /masonry|roof-to-wall|roof to wall|chimney|counter\s*flashing/i.test(n));
+  const notesStr = extractedData.notes || '';
+  const chimneyPositiveInNotes =
+    /\bchimney\b/i.test(notesStr) && !/no chimney|without chimney|chimney\s+(?:flashing\s+)?not\b/i.test(notesStr);
+  const hasMasonryOrRoofToWall =
+    /masonry|roof-to-wall|roof to wall/i.test(notesStr) ||
+    chimneyPositiveInNotes ||
+    instructions.some(s =>
+      /masonry|roof-to-wall|roof to wall/i.test(s) ||
+      (/\bchimney\b|counter\s*flashing/i.test(s) && !/no chimney|do not/i.test(s))
+    ) ||
+    filteredNotes.some(n =>
+      /masonry|roof-to-wall|roof to wall/i.test(n) ||
+      (/\bchimney\b|counter\s*flashing/i.test(n) && !/no chimney|do not/i.test(n))
+    );
 
   if (hasChimney || hasMasonryOrRoofToWall) {
     if (materials.counterFlashing === 0) {
@@ -377,19 +393,24 @@ function runConsistencyCheck(
     }
   }
   const parsedCounter = parseQuantityFromText(descriptionLines, /counter\s*flashing|counter\s*flash/i);
-  if (parsedCounter !== null) {
+  // Guard: only apply when a real chimney/masonry condition exists — prevents "4x5 counter
+  // flashing" dimension references from being misread as a quantity on no-chimney jobs.
+  if (parsedCounter !== null && (hasChimney || hasMasonryOrRoofToWall)) {
     materials.counterFlashing = parsedCounter;
     warnings.push(`RECONCILIATION: Counter Flashing adjusted to match description count (${parsedCounter} pcs).`);
   }
 
-  // Skylights & Valley Metal (Point 8)
+  // Valley Metal (Point 8) — include when valleys are present; 1 roll per 50 LF
   const hasSkylights = !!extractedData.hasSkylights || (Number(extractedData.skylightCount) || 0) > 0 || instructions.some(s => /skylight/i.test(s));
-  if (hasSkylights && (materials.valleyMetal || 0) === 0) {
-    materials.valleyMetal = 1;
-    warnings.push('CONSISTENCY FIX: Valley metal (20" x 50\' roll) automatically included because skylights are present.');
+  const valleyLF = Number(extractedData.valleys) || 0;
+  if (valleyLF > 0 && (materials.valleyMetal || 0) === 0) {
+    materials.valleyMetal = Math.max(1, Math.ceil(valleyLF / 50));
+    warnings.push(`CONSISTENCY FIX: Valley metal (20" x 50' roll) automatically included for ${valleyLF} LF of roof valleys.`);
   }
   const parsedValleyMetal = parseQuantityFromText(descriptionLines, /valley\s*metal|rolled\s*valley/i);
-  if (parsedValleyMetal !== null) {
+  // Only apply when the job actually has valleys or skylights — prevents "no valley metal required"
+  // notes from accidentally raising the count via a stray number in a long description line.
+  if (parsedValleyMetal !== null && valleyLF > 0) {
     materials.valleyMetal = parsedValleyMetal;
     warnings.push(`RECONCILIATION: Valley Metal rolls adjusted to match description count (${parsedValleyMetal} rolls).`);
   }
@@ -415,7 +436,10 @@ function runConsistencyCheck(
     instructions.some(s => /remove\s*(?:old)?\s*(?:box|turtle|static)\s*vents/i.test(s)) ||
     filteredNotes.some(n => /remove\s*(?:old)?\s*(?:box|turtle|static)\s*vents/i.test(n));
 
-  if (isRemovingVents || ((ventStrategy === 'Ridge' || ventStrategy === 'Hybrid') && (Number(extractedData.vents) > 0 || Number(extractedData.insuranceVents) > 0))) {
+  // OSB is needed when patching holes left by removed turtle/box vents.
+  // Only trigger automatically for Ridge strategy (which replaces all box vents).
+  // Hybrid keeps existing vents — only trigger if the description explicitly says removal.
+  if (isRemovingVents || (ventStrategy === 'Ridge' && (Number(extractedData.vents) > 0 || Number(extractedData.insuranceVents) > 0))) {
     ventsRemoved = Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
     if (ventsRemoved === 0) {
       const parsedRemoved = parseQuantityFromText(descriptionLines, /remove\s*(?:old)?\s*(\d+)\s*(?:box|turtle|static)\s*vents/i);
@@ -428,7 +452,9 @@ function runConsistencyCheck(
     warnings.push(`CONSISTENCY FIX: ${ventsRemoved} sheet(s) of 7/16" OSB Sheathing included for removing ${ventsRemoved} turtle vent(s).`);
   }
   const parsedOSB = parseQuantityFromText(descriptionLines, /osb|sheathing|plywood\s*sheet/i);
-  if (parsedOSB !== null) {
+  // Only apply when turtle/box vent removal is actually happening — prevents lines like
+  // "Install 7 box vents … seal with OSB patches" from setting osbSheathing=7.
+  if (parsedOSB !== null && ventsRemoved > 0) {
     materials.osbSheathing = parsedOSB;
     warnings.push(`RECONCILIATION: OSB Sheathing sheets adjusted to match description count (${parsedOSB} sheets).`);
   }
@@ -440,7 +466,9 @@ function runConsistencyCheck(
     warnings.push(`CONSISTENCY FIX: Mule-Hide JTS1 Joint Sealant automatically included for roof valleys.`);
   }
   const parsedMuleHide = parseQuantityFromText(descriptionLines, /mule[-]hide|jts1|joint\s*sealant/i);
-  if (parsedMuleHide !== null) {
+  // Only apply when the job actually has valleys — prevents "no Mule-Hide required" mentions
+  // from raising the count via stray numbers in description lines.
+  if (parsedMuleHide !== null && valleysLF > 0) {
     materials.muleHideSealant = parsedMuleHide;
     warnings.push(`RECONCILIATION: Mule-Hide JTS1 Joint Sealant adjusted to match description count (${parsedMuleHide} tubes).`);
   }
@@ -462,8 +490,10 @@ function runConsistencyCheck(
       paintCount += 1;
     }
   }
-  const parsedPaint = parseQuantityFromText(descriptionLines, /paint|touch-up\s*paint|cans\s*of\s*(?:touch-up\s*)?paint/i);
-  if (parsedPaint !== null) {
+  // Use specific phrase match to avoid "painted" (adjective) triggering a quantity search.
+  // Only override upward — prevents "order 1 additional" phrasing from lowering a correct count.
+  const parsedPaint = parseQuantityFromText(descriptionLines, /touch[- ]up\s*paint|\bcans?\s+of\s+(?:touch[- ]up\s+)?paint\b/i);
+  if (parsedPaint !== null && parsedPaint > paintCount) {
     paintCount = parsedPaint;
     warnings.push(`RECONCILIATION: Touch-Up Paint adjusted to match description paint requirements (${parsedPaint} cans).`);
   }
@@ -477,7 +507,9 @@ function runConsistencyCheck(
   if (materials.valleyMetal > 0) expectedSealant += materials.valleyMetal * 1;
 
   const parsedGeocel = parseQuantityFromText(descriptionLines, /geocel|sealant|tubes\s*of\s*sealant/i);
-  if (parsedGeocel !== null) {
+  // Only override upward — Claude's base-formula note often shows a lower count than the
+  // reconciliation engine which correctly adds extras for box vents, step flashing, etc.
+  if (parsedGeocel !== null && parsedGeocel > expectedSealant) {
     expectedSealant = parsedGeocel;
     warnings.push(`RECONCILIATION: Geocel 2300 Sealant adjusted to match description count (${parsedGeocel} tubes).`);
   }
