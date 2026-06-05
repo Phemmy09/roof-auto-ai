@@ -67,6 +67,21 @@ const JobPDFDocument = ({
         {(calculatedMaterials?.boxVents || 0) > 0 && (
           <Row label="Box Vents (Lomanco 750)" value={`${calculatedMaterials.boxVents} ea`} />
         )}
+        {(calculatedMaterials?.exhaustVents || 0) > 0 && (
+          <Row label="Exhaust Vents / Caps" value={`${calculatedMaterials.exhaustVents} ea`} />
+        )}
+        {(calculatedMaterials?.turtleVents || 0) > 0 && (
+          <Row label="Turtle Vents" value={`${calculatedMaterials.turtleVents} ea`} />
+        )}
+        {(calculatedMaterials?.powerVents || 0) > 0 && (
+          <Row label="Power Vents" value={`${calculatedMaterials.powerVents} ea`} />
+        )}
+        {(calculatedMaterials?.turbines || 0) > 0 && (
+          <Row label="Turbines" value={`${calculatedMaterials.turbines} ea`} />
+        )}
+        {(calculatedMaterials?.otherPenetrations || 0) > 0 && (
+          <Row label="Other Roof Penetrations" value={`${calculatedMaterials.otherPenetrations} ea`} />
+        )}
         {(calculatedMaterials?.osbSheathing || 0) > 0 && (
           <Row label="7/16&quot; OSB Sheathing" value={`${calculatedMaterials.osbSheathing} sheet(s)`} />
         )}

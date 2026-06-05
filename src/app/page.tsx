@@ -388,6 +388,11 @@ export default function Home() {
                         <MatRow label="Pipe Jacks" value={editMaterials.pipeJacks || 0} unit="ea" onChange={v => setMat('pipeJacks', v)} />
                         <MatRow label="Ridge Vent (4 ft sections)" value={editMaterials.ridgeVentSections || 0} unit="sections" onChange={v => setMat('ridgeVentSections', v)} />
                         <MatRow label="Box Vents (Lomanco 750)" value={editMaterials.boxVents || 0} unit="ea" onChange={v => setMat('boxVents', v)} />
+                        <MatRow label="Exhaust Vents / Caps" value={editMaterials.exhaustVents || 0} unit="ea" onChange={v => setMat('exhaustVents', v)} />
+                        <MatRow label="Turtle Vents" value={editMaterials.turtleVents || 0} unit="ea" onChange={v => setMat('turtleVents', v)} />
+                        <MatRow label="Power Vents" value={editMaterials.powerVents || 0} unit="ea" onChange={v => setMat('powerVents', v)} />
+                        <MatRow label="Turbines" value={editMaterials.turbines || 0} unit="ea" onChange={v => setMat('turbines', v)} />
+                        <MatRow label="Other Roof Penetrations" value={editMaterials.otherPenetrations || 0} unit="ea" onChange={v => setMat('otherPenetrations', v)} />
                         <MatRow label={'7/16″ OSB Sheathing'} value={editMaterials.osbSheathing || 0} unit="sheet(s)" onChange={v => setMat('osbSheathing', v)} />
 
                         <p className="text-xs text-slate-500 uppercase tracking-wide mb-1.5 mt-3">Accessories & Hardware</p>

@@ -83,6 +83,7 @@ export async function processJobWithAI(documents: any[]): Promise<{
   const emptyExtracted = {
     squares: 0, pitch: 'N/A', ridges: 0, hips: 0, valleys: 0,
     rakes: 0, eaves: 0, pipeBoots: 0, vents: 0,
+    exhaustVents: 0, turtleVents: 0, powerVents: 0, turbines: 0, otherPenetrations: 0,
     insuranceCompany: 'N/A', claimNumber: 'N/A',
     approvedAmount: 'N/A', deductible: 'N/A',
     customerName: 'N/A', address: 'N/A',
@@ -101,6 +102,7 @@ export async function processJobWithAI(documents: any[]): Promise<{
       extractedData: {
         squares: 30, pitch: '6/12', ridges: 40, hips: 20, valleys: 15,
         rakes: 50, eaves: 60, pipeBoots: 2, vents: 4,
+        exhaustVents: 0, turtleVents: 0, powerVents: 0, turbines: 0, otherPenetrations: 0,
         insuranceCompany: 'Mock Insurance Co.', claimNumber: 'CLM-99999',
         approvedAmount: '$12,500', deductible: '$1,000',
         customerName: 'Jane Doe Testing', address: '456 Test Street, Mock City',
@@ -143,6 +145,11 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
     "eaves": number,
     "pipeBoots": number,
     "vents": number,
+    "exhaustVents": number,
+    "turtleVents": number,
+    "powerVents": number,
+    "turbines": number,
+    "otherPenetrations": number,
     "insuranceCompany": string,
     "claimNumber": string,
     "approvedAmount": string,
@@ -173,7 +180,18 @@ Return ONLY valid JSON — no markdown, no explanation, no code blocks.
 }
 
 Rules:
-- Eagle View data takes highest priority for measurements.
+- General Measurements: Eagle View data takes highest priority for general roof geometry measurements (squares, pitch, hips, valleys, rakes, eaves).
+- Non-Ridge Vent Components (pipeBoots, vents, exhaustVents, turtleVents, powerVents, turbines, otherPenetrations): Use the following source hierarchy to extract their quantities:
+  1. Insurance Scope (Estimate line items RFG PJ3, RFG PJ4, RFG BOX, RFG CAP, etc.)
+  2. SOW (Contract / Job Notes)
+  3. Photos / Photo Assessment documents
+  Do NOT use EagleView as the source of truth for these non-ridge vent components, as they typically do not appear on EagleView.
+- Ridge Vent Length: Extract the ridges measurement (representing ridge vent length to install) following this source hierarchy:
+  1. Ventilation Scope Sheet (absolute Source of Truth; override EagleView measurements when available)
+  2. SOW (Contract / Job Notes)
+  3. EagleView ridge measurements (Fallback measurement tool)
+  4. Photos for validation
+  The Ventilation Scope Sheet always overrides EagleView ridge measurements when both are available. EagleView can be used as a fallback measurement tool, but not as the primary source.
 - Use 0 for missing numbers, "N/A" for missing strings.
 - ventilationStrategy: extract from the scope/insurance document ONLY — not from roof geometry. Scope of Work / Insurance estimate is the absolute, primary source of truth for venting. Do NOT assume ridge vents are needed just because there are "ridges" on the roof. Turtle/static/box vents in scope → "Box". Ridge vent in scope → "Ridge". Both → "Hybrid". Unclear → "N/A". If the scope specifies box/turtle/static vents, ventilationStrategy MUST be "Box".
 - insuranceSquares: extract the total squares specifically listed/approved in the insurance scope of work (e.g. tear off or install shingle line item quantity). Use 0 if retail or not found.
@@ -185,7 +203,7 @@ Rules:
 - materialNotes: color matches, special products, code additions, supplement flags.
 
 CRITICAL — Ventilation alignment: The ventilationStrategy you extract drives ALL ventilation content.
-- If ventilationStrategy = "Box": crew instructions MUST include installing static/box vents per EagleView count. Do NOT include ridge vent cut-in or ridge vent installation steps. Do NOT reference ridge vent in materialNotes.
+- If ventilationStrategy = "Box": crew instructions MUST include installing static/box vents per extracted count. Do NOT include ridge vent cut-in or ridge vent installation steps. Do NOT reference ridge vent in materialNotes.
 - If ventilationStrategy = "Ridge": crew instructions MUST include ridge vent cut-in. Do NOT include box/turtle vent installation steps.
 - If ventilationStrategy = "Hybrid": include both ridge and box vent steps.
 - If ventilationStrategy = "N/A": omit all ventilation installation steps.

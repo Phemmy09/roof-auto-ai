@@ -26,6 +26,7 @@ function mapToCamel(dbRes: any): FormulaConfig {
   return {
     // ── legacy main columns (kept for backward compat) ──
     feltCoverage:     dbRes.felt_coverage          ?? DEFAULTS.feltCoverage,
+    iceWaterCoverage: dbRes.ice_water_coverage     ?? DEFAULTS.iceWaterCoverage,
     ridgeCapCoverage: dbRes.ridge_cap_coverage     ?? DEFAULTS.ridgeCapCoverage,
     dripEdgeLength:   dbRes.drip_edge_length       ?? DEFAULTS.dripEdgeLength,
     coilNailsCoverage:dbRes.coil_nails_coverage    ?? DEFAULTS.coilNailsCoverage,
@@ -71,8 +72,8 @@ function mapToDb(body: FormulaConfig) {
   const mainColumns = {
     singleton_key:      'STATIC',
     felt_coverage:      body.feltCoverage,
-    // ice_water_coverage kept in schema but no longer used in formulas — set to 0
-    ice_water_coverage: 0,
+    // ice_water_coverage kept in schema but no longer used in formulas — set to 0 or value if sent
+    ice_water_coverage: body.iceWaterCoverage      ?? 0,
     ridge_cap_coverage: body.ridgeCapCoverage,
     drip_edge_length:   body.dripEdgeLength,
     coil_nails_coverage:body.coilNailsCoverage,

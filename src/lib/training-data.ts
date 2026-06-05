@@ -31,7 +31,7 @@ Pitch slope factors reference:
 
 VENTILATION REQUIREMENTS:
 - Ridge Vent: Cut-in ridge line per sketch. Remove old turtle vents if ridge vent replaces them. Install ridge vent sections per material order. Seal old vent holes with SmartPlugs if needed.
-- Static/Box Vents: Install per EagleView count IF ventilation strategy = Box Vents. Remove outdated vents and cap holes.
+- Static/Box Vents: Install per reconciled count (following 1. Insurance Scope, 2. SOW, 3. Photos hierarchy) IF ventilation strategy = Box Vents. Remove outdated vents and cap holes.
 - Intake Ventilation: Cut-in and install Deck-Air intake where required. If attic lacks soffit ventilation, intake venting is required when ridge vents are added.
 - If ridge vent is included in scope, remove box/turtle vents unless scope says otherwise.
 
@@ -150,17 +150,18 @@ SYNTHETIC UNDERLAYMENT: Always include. 10 SQ per roll, 5% waste. Account for do
 ICE & WATER SHIELD: Calculate using the I&W Calculation Hierarchy (Eave code requirement + penetrations + existing I&W from SOW + 10-15% waste, divided by 200 sq ft per roll). Show calculations in description and ensure the quantity matches the Material Order Form.
 DRIP EDGE (RAKE): Include if Rake LF > 0. 30% extra for overlaps/cuts. 10 ft sticks. Color match shingles/metal.
 DRIP EDGE (EAVE): Include if Eave LF > 0. Use gutter apron at eave edge. 10 ft sticks. Color match gutters/fascia.
-PIPE JACKS: Count from EagleView pipeBoots field. Color match to roof.
-RIDGE VENT (4 ft sections): Include only if Ventilation Strategy = Ridge Vent. Not used with box vents.
-BOX VENTS (Lomanco 750): Include only if Ventilation Strategy = Box Vents.
+PIPE JACKS: Extract using source hierarchy (1. Insurance Scope, 2. SOW, 3. Photos). Color match to roof. Do NOT use EagleView as the primary source of truth.
+RIDGE VENT (4 ft sections): Include only if Ventilation Strategy = Ridge Vent. Use source hierarchy (1. Ventilation Scope Sheet, 2. SOW, 3. EagleView ridge measurements, 4. Photos for validation). The ventilation scope sheet always overrides EagleView ridge measurements when both are available.
+BOX VENTS (Lomanco 750) / TURTLE VENTS / EXHAUST VENTS / POWER VENTS / TURBINES / OTHER ROOF PENETRATIONS: Extract using source hierarchy (1. Insurance Scope, 2. SOW, 3. Photos). Do NOT use EagleView as the primary source of truth. Include box/turtle vents only if Ventilation Strategy is Box or Hybrid (or for exhaust caps/power vents/turbines/other penetrations, as specified by those documents).
 COIL NAILS 1-1/4": Always include. ~1 case per 12 SQ.
 CAP NAILS (Plastic): Always include. 1 box if ≤25 SQ, 2 boxes if >25 SQ.
-GEOCEL 2300 SEALANT: Always include. Min 3 tubes. Formula: CEIL(valleys/40 + (ridges+hips)/60). Include additional tubes of Geocel if box vents, step flashing, counter flashing, valley metal, or other metal components are added.
+GEOCEL 2300 SEALANT: Always include. Min 3 tubes. Formula: CEIL(valleys/40 + (ridges+hips)/60). Include additional tubes of Geocel if box vents, turtle vents, exhaust vents, power vents, turbines, step flashing, counter flashing, valley metal, or other metal components are added.
 STEP FLASHING: Include if sidewall/vertical LF > 0. Calculate at approximately 1 piece per shingle course (~2.4 pieces per linear foot of sidewall/vertical wall). 45 pcs per bundle. Ensure quantities appear in both the description and the material order summary.
 COUNTER FLASHING: Automatically include counter flashing (unit: pc) if a chimney, masonry wall, or roof-to-wall condition is identified.
-TOUCH-UP PAINT: Include when new/visible metal is installed. 2-3 cans per job base. Automatically include 1 additional can of touch-up paint if additional metal components are added (step flashing, counter flashing, drip edge, valley metal, etc.). Check SOW notes for project-specific paint requirements.
+TOUCH-UP PAINT: Include when new/visible metal is installed. 2-3 cans per job base. Automatically include 1 additional can of touch-up paint if additional metal components are added (step flashing, counter flashing, drip edge, valley metal, exhaust vents, power vents, turbines, etc.). Check SOW notes for project-specific paint requirements.
 SKYLIGHTS: If skylights are present, automatically include valley metal rolls (specification: 20” x 50’ rolls).
-TURTLE VENT REMOVAL: If turtle vents are being removed, include 7/16” OSB sheathing. Quantity: 1 sheet of 7/16” OSB per turtle vent removed.
+TURTLE VENT REMOVAL: If turtle vents are being removed, include 7/16” OSB sheathing. Quantity: 1 sheet of 7/16” OSB per turtle vent/box vent removed.
 VALLEYS: For all roof valleys, include Mule-Hide JTS1 Joint Sealant.
+
 `;
 

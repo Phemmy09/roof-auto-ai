@@ -251,7 +251,7 @@ function runConsistencyCheck(
       materials.ridgeVentSections = 0;
       warnings.push('CONSISTENCY FIX: Ridge vent sections removed — scope specifies Box/Static vents.');
     }
-    const boxCount = Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
+    const boxCount = Number(extractedData.boxVents) || Number(extractedData.turtleVents) || Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
     materials.boxVents = boxCount > 0 ? boxCount : 4;
   } else if (ventStrategy === 'Ridge') {
     if (materials.boxVents > 0) {
@@ -416,10 +416,45 @@ function runConsistencyCheck(
   }
 
   // Box Vents (Point 3)
-  const parsedBoxVents = parseQuantityFromText(descriptionLines, /box\s*vent|turtle\s*vent|static\s*vent|slant\s*back/i);
+  const parsedBoxVents = parseQuantityFromText(descriptionLines, /box\s*vent|slant\s*back/i);
   if (parsedBoxVents !== null) {
     materials.boxVents = parsedBoxVents;
     warnings.push(`RECONCILIATION: Box Vents adjusted to match description/upgrades count (${parsedBoxVents} ea).`);
+  }
+
+  // Turtle Vents
+  const parsedTurtleVents = parseQuantityFromText(descriptionLines, /turtle\s*vent/i);
+  if (parsedTurtleVents !== null) {
+    materials.turtleVents = parsedTurtleVents;
+    warnings.push(`RECONCILIATION: Turtle Vents adjusted to match description count (${parsedTurtleVents} ea).`);
+  }
+
+  // Exhaust Vents / Caps
+  const parsedExhaustVents = parseQuantityFromText(descriptionLines, /exhaust\s*vent|exhaust\s*cap/i);
+  if (parsedExhaustVents !== null) {
+    materials.exhaustVents = parsedExhaustVents;
+    warnings.push(`RECONCILIATION: Exhaust Vents adjusted to match description count (${parsedExhaustVents} ea).`);
+  }
+
+  // Power Vents
+  const parsedPowerVents = parseQuantityFromText(descriptionLines, /power\s*vent/i);
+  if (parsedPowerVents !== null) {
+    materials.powerVents = parsedPowerVents;
+    warnings.push(`RECONCILIATION: Power Vents adjusted to match description count (${parsedPowerVents} ea).`);
+  }
+
+  // Turbines
+  const parsedTurbines = parseQuantityFromText(descriptionLines, /turbine/i);
+  if (parsedTurbines !== null) {
+    materials.turbines = parsedTurbines;
+    warnings.push(`RECONCILIATION: Turbines adjusted to match description count (${parsedTurbines} ea).`);
+  }
+
+  // Other Roof Penetrations
+  const parsedOtherPenetrations = parseQuantityFromText(descriptionLines, /other\s*roof\s*penetration|other\s*penetration/i);
+  if (parsedOtherPenetrations !== null) {
+    materials.otherPenetrations = parsedOtherPenetrations;
+    warnings.push(`RECONCILIATION: Other Roof Penetrations adjusted to match description count (${parsedOtherPenetrations} ea).`);
   }
 
   // Pipe Jacks (Point 3)
@@ -439,8 +474,8 @@ function runConsistencyCheck(
   // OSB is needed when patching holes left by removed turtle/box vents.
   // Only trigger automatically for Ridge strategy (which replaces all box vents).
   // Hybrid keeps existing vents — only trigger if the description explicitly says removal.
-  if (isRemovingVents || (ventStrategy === 'Ridge' && (Number(extractedData.vents) > 0 || Number(extractedData.insuranceVents) > 0))) {
-    ventsRemoved = Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
+  if (isRemovingVents || (ventStrategy === 'Ridge' && (Number(extractedData.vents) > 0 || Number(extractedData.insuranceVents) > 0 || Number(extractedData.turtleVents) > 0 || Number(extractedData.boxVents) > 0))) {
+    ventsRemoved = Number(extractedData.turtleVents) || Number(extractedData.boxVents) || Number(extractedData.vents) || Number(extractedData.insuranceVents) || 0;
     if (ventsRemoved === 0) {
       const parsedRemoved = parseQuantityFromText(descriptionLines, /remove\s*(?:old)?\s*(\d+)\s*(?:box|turtle|static)\s*vents/i);
       ventsRemoved = parsedRemoved !== null ? parsedRemoved : 4; // default to 4 if we know they are removed but count is 0
@@ -449,7 +484,7 @@ function runConsistencyCheck(
   
   if (ventsRemoved > 0 && (materials.osbSheathing || 0) === 0) {
     materials.osbSheathing = ventsRemoved; // 1 sheet per vent removed
-    warnings.push(`CONSISTENCY FIX: ${ventsRemoved} sheet(s) of 7/16" OSB Sheathing included for removing ${ventsRemoved} turtle vent(s).`);
+    warnings.push(`CONSISTENCY FIX: ${ventsRemoved} sheet(s) of 7/16" OSB Sheathing included for removing ${ventsRemoved} turtle/box vent(s).`);
   }
   const parsedOSB = parseQuantityFromText(descriptionLines, /osb|sheathing|plywood\s*sheet/i);
   // Only apply when turtle/box vent removal is actually happening — prevents lines like
@@ -482,11 +517,18 @@ function runConsistencyCheck(
     materials.pipeJacks > 0 ||
     materials.boxVents > 0 ||
     materials.ridgeVentSections > 0 ||
+    materials.exhaustVents > 0 ||
+    materials.turtleVents > 0 ||
+    materials.powerVents > 0 ||
+    materials.turbines > 0 ||
+    materials.otherPenetrations > 0 ||
     (materials.valleyMetal && materials.valleyMetal > 0);
 
   if (hasMetals) {
     paintCount = 2; // base
-    if (materials.stepFlashing > 0 || materials.counterFlashing > 0 || (materials.valleyMetal && materials.valleyMetal > 0)) {
+    if (materials.stepFlashing > 0 || materials.counterFlashing > 0 || (materials.valleyMetal && materials.valleyMetal > 0) ||
+        materials.exhaustVents > 0 || materials.turtleVents > 0 || materials.powerVents > 0 ||
+        materials.turbines > 0 || materials.otherPenetrations > 0) {
       paintCount += 1;
     }
   }
@@ -503,6 +545,11 @@ function runConsistencyCheck(
   let expectedSealant = Math.max(3, Math.ceil(valleysLF / 40 + ((Number(extractedData.ridges) || 0) + (Number(extractedData.hips) || 0)) / 60));
   if (materials.counterFlashing > 0) expectedSealant += materials.counterFlashing * 1;
   if (materials.boxVents > 0) expectedSealant += Math.ceil(materials.boxVents / 2);
+  if (materials.exhaustVents > 0) expectedSealant += Math.ceil(materials.exhaustVents / 2);
+  if (materials.turtleVents > 0) expectedSealant += Math.ceil(materials.turtleVents / 2);
+  if (materials.powerVents > 0) expectedSealant += materials.powerVents * 1;
+  if (materials.turbines > 0) expectedSealant += materials.turbines * 1;
+  if (materials.otherPenetrations > 0) expectedSealant += Math.ceil(materials.otherPenetrations / 2);
   if (materials.stepFlashing > 0) expectedSealant += materials.stepFlashing * 1;
   if (materials.valleyMetal > 0) expectedSealant += materials.valleyMetal * 1;
 

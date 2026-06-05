@@ -17,6 +17,7 @@ export interface FormulaConfig {
   enableFelt: boolean;
 
   // ── Ice & Water Shield ──────────────────────────────────────────────────
+  iceWaterCoverage: number;           // legacy compatibility
   iceWaterSqFtPerRoll: number;        // product spec — sqft per roll
   iceWaterEaveWidth: number;          // ft of eave coverage width
   iceWaterValleyWidth: number;        // ft of valley coverage (each side)
@@ -80,6 +81,7 @@ export const DEFAULTS: FormulaConfig = {
   feltWasteFactor: 0.05,
   enableFelt: true,
 
+  iceWaterCoverage: 0,
   iceWaterSqFtPerRoll: 200,
   iceWaterEaveWidth: 3,
   iceWaterValleyWidth: 3,
@@ -129,6 +131,11 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   const hips         = Number(data.hips)         || 0;
   const rakes        = Number(data.rakes)        || 0;
   const pipeBoots    = Number(data.pipeBoots)    || 0;
+  const exhaustVents = Number(data.exhaustVents) || 0;
+  const turtleVents  = Number(data.turtleVents)  || 0;
+  const powerVents   = Number(data.powerVents)   || 0;
+  const turbines     = Number(data.turbines)     || 0;
+  const otherPenetrations = Number(data.otherPenetrations) || 0;
   const sidewallLF   = Number(data.sidewallLF)   || 0;
   const ventStrategy = String(data.ventilationStrategy || 'N/A');
 
@@ -202,7 +209,7 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   // Box vents
   const boxVents =
     ventStrategy === 'Box' || ventStrategy === 'Hybrid'
-      ? Number(data.vents) || 0
+      ? Number(data.boxVents || data.vents) || 0
       : 0;
 
   // Step flashing
@@ -221,7 +228,7 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   // OSB sheathing — 1 sheet per vent removed only when fully switching to Ridge.
   // Hybrid keeps existing box vents, so no patching is needed unless explicitly stated.
   const ventsRemoved = ventStrategy === 'Ridge'
-    ? (Number(data.vents) || Number(data.insuranceVents) || 0)
+    ? (Number(data.boxVents || data.turtleVents || data.vents || data.insuranceVents) || 0)
     : 0;
   const osbSheathing = ventsRemoved * cfg.osbSheetsPerVent;
 
@@ -234,7 +241,9 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   const hasMetal =
     dripEdgeRake > 0 || dripEdgeEave > 0 || stepFlashing > 0 ||
     pipeJacks > 0 || boxVents > 0 || ridgeVentSections > 0 ||
-    counterFlashing > 0 || valleyMetal > 0;
+    counterFlashing > 0 || valleyMetal > 0 ||
+    exhaustVents > 0 || turtleVents > 0 || powerVents > 0 ||
+    turbines > 0 || otherPenetrations > 0;
 
   if (hasMetal) {
     touchUpPaint = cfg.touchUpPaintBase;
@@ -259,6 +268,11 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
   );
   if (counterFlashing > 0) sealant += counterFlashing;
   if (boxVents > 0)        sealant += Math.ceil(boxVents / 2);
+  if (exhaustVents > 0)    sealant += Math.ceil(exhaustVents / 2);
+  if (turtleVents > 0)     sealant += Math.ceil(turtleVents / 2);
+  if (powerVents > 0)      sealant += powerVents;
+  if (turbines > 0)        sealant += turbines;
+  if (otherPenetrations > 0) sealant += Math.ceil(otherPenetrations / 2);
   if (stepFlashing > 0)    sealant += stepFlashing;
   if (valleyMetal > 0)     sealant += valleyMetal;
 
@@ -267,6 +281,7 @@ export async function calculateAllMaterials(data: any, config?: Partial<FormulaC
     dripEdge, dripEdgeRake, dripEdgeEave,
     coilNails, starterStrip, pipeJacks,
     ridgeVentSections, boxVents,
+    exhaustVents, turtleVents, powerVents, turbines, otherPenetrations,
     stepFlashing, stepFlashingPcs,
     counterFlashing, valleyMetal, osbSheathing,
     muleHideSealant, touchUpPaint, capNails, sealant,
