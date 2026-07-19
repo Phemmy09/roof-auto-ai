@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Roof Auto AI — Standard Operating Procedure</title>
+<style>
+  :root{
+    --bg:#f8fafc;--surface:#ffffff;--surface2:#f1f5f9;--border:#e2e8f0;
+    --text:#1e293b;--muted:#64748b;--accent:#2563eb;--accent-light:#eff6ff;
+    --green:#16a34a;--green-light:#f0fdf4;--green-border:#bbf7d0;
+    --yellow:#d97706;--yellow-light:#fffbeb;--yellow-border:#fde68a;
+    --red:#dc2626;--red-light:#fef2f2;--red-border:#fecaca;
+    --blue-border:#bfdbfe;--navy:#1e40af;
+    --font:'Segoe UI',system-ui,sans-serif;
+    --font-mono:'Cascadia Code','Consolas',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.7}
+
+  .page-wrap{max-width:820px;margin:0 auto;padding:48px 32px 80px}
+
+  /* Header */
+  .doc-header{background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#0891b2 100%);color:#fff;border-radius:16px;padding:40px 48px;margin-bottom:48px}
+  .doc-header .org{font-size:12px;text-transform:uppercase;letter-spacing:.12em;opacity:.7;margin-bottom:8px}
+  .doc-header h1{font-size:34px;font-weight:800;line-height:1.15;margin-bottom:8px}
+  .doc-header .subtitle{font-size:16px;opacity:.85;margin-bottom:20px}
+  .doc-meta{display:flex;gap:24px;flex-wrap:wrap;font-size:12px;opacity:.75;border-top:1px solid rgba(255,255,255,.2);padding-top:16px;margin-top:16px}
+
+  /* TOC */
+  .toc{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-bottom:48px}
+  .toc h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px}
+  .toc ol{margin-left:18px}
+  .toc li{margin-bottom:4px}
+  .toc a{color:var(--accent);text-decoration:none;font-size:14px}
+  .toc a:hover{text-decoration:underline}
+  .toc ol ol{margin-top:2px;margin-left:18px;list-style-type:lower-alpha}
+  .toc ol ol a{font-size:13px;color:var(--muted)}
+
+  /* Sections */
+  .section{margin-bottom:56px}
+  .section-header{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid var(--border)}
+  .section-num{width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .section-header h2{font-size:22px;font-weight:700;color:var(--text)}
+  h3{font-size:16px;font-weight:600;margin:24px 0 10px;color:var(--navy)}
+  h4{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 8px}
+  p{margin-bottom:12px}
+  ul,ol{margin:10px 0 14px 22px}
+  li{margin-bottom:5px}
+  a{color:var(--accent)}
+  strong{color:var(--text)}
+
+  /* Step cards */
+  .steps{display:flex;flex-direction:column;gap:0}
+  .step{display:flex;gap:0;position:relative}
+  .step:not(:last-child)::before{content:'';position:absolute;left:19px;top:42px;bottom:0;width:2px;background:var(--border)}
+  .step-num{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1;margin-top:2px}
+  .step-body{flex:1;padding:0 0 28px 18px}
+  .step-body h3{margin:4px 0 8px;font-size:16px}
+  .step-body p{margin-bottom:8px;color:var(--muted);font-size:14px}
+  .step-body ul{margin-left:18px;font-size:14px}
+
+  /* Callouts */
+  .callout{border-radius:8px;padding:14px 18px;margin:16px 0;font-size:14px;display:flex;gap:12px;align-items:flex-start}
+  .callout-icon{flex-shrink:0;font-size:18px;margin-top:1px}
+  .tip{background:var(--green-light);border:1px solid var(--green-border)}
+  .warning{background:var(--yellow-light);border:1px solid var(--yellow-border)}
+  .danger{background:var(--red-light);border:1px solid var(--red-border)}
+  .info{background:var(--accent-light);border:1px solid var(--blue-border)}
+  .callout-body strong{color:var(--text)}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--surface);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+  th{text-align:left;padding:10px 16px;background:var(--surface2);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  td{padding:10px 16px;border-top:1px solid var(--border);vertical-align:top}
+  tr:first-child td{border-top:none}
+
+  /* File type chips */
+  .chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600;margin:2px}
+  .chip-blue{background:#dbeafe;color:#1e40af}
+  .chip-green{background:#dcfce7;color:#15803d}
+  .chip-yellow{background:#fef9c3;color:#854d0e}
+  .chip-red{background:#fee2e2;color:#991b1b}
+  .chip-gray{background:#f1f5f9;color:#475569}
+
+  /* Result panels */
+  .result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:16px 0}
+  .result-card{border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--surface)}
+  .result-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .result-card .value{font-size:18px;font-weight:700;color:var(--navy)}
+  .result-card p{font-size:12px;color:var(--muted);margin:4px 0 0}
+
+  /* Do/Don't */
+  .do-dont{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  .do-box{background:var(--green-light);border:1px solid var(--green-border);border-radius:8px;padding:16px}
+  .dont-box{background:var(--red-light);border:1px solid var(--red-border);border-radius:8px;padding:16px}
+  .do-box h4{color:var(--green);margin:0 0 8px}
+  .dont-box h4{color:var(--red);margin:0 0 8px}
+  .do-box ul,.dont-box ul{margin-left:16px;font-size:13px}
+
+  /* Troubleshoot */
+  .trouble-item{border:1px solid var(--border);border-radius:8px;margin:12px 0;overflow:hidden;background:var(--surface)}
+  .trouble-q{padding:14px 18px;background:var(--surface2);font-weight:600;font-size:14px;cursor:pointer;display:flex;justify-content:space-between}
+  .trouble-a{padding:14px 18px;font-size:14px;border-top:1px solid var(--border)}
+  .trouble-a ol,.trouble-a ul{margin-left:18px}
+
+  /* Checklist */
+  .checklist{list-style:none;margin:12px 0 16px;padding:0}
+  .checklist li{padding:6px 0 6px 28px;position:relative;font-size:14px;border-bottom:1px solid var(--border)}
+  .checklist li:last-child{border-bottom:none}
+  .checklist li::before{content:'☐';position:absolute;left:0;color:var(--muted);font-size:16px;line-height:1.2}
+
+  /* Timeline */
+  .timeline{position:relative;margin:16px 0}
+  .timeline::before{content:'';position:absolute;left:10px;top:4px;bottom:4px;width:2px;background:var(--border)}
+  .tl-item{display:flex;gap:16px;margin-bottom:16px;position:relative}
+  .tl-dot{width:22px;height:22px;border-radius:50%;background:var(--accent);flex-shrink:0;position:relative;z-index:1;margin-top:2px;display:flex;align-items:center;justify-content:center}
+  .tl-dot span{color:#fff;font-size:10px;font-weight:700}
+  .tl-body h4{margin:0 0 2px;font-size:14px;font-weight:600}
+  .tl-body p{font-size:13px;color:var(--muted);margin:0}
+
+  /* Kbd */
+  kbd{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--font-mono);font-size:12px;color:var(--text)}
+
+  @media(max-width:600px){
+    .page-wrap{padding:24px 16px 60px}
+    .doc-header{padding:28px 24px}
+    .do-dont{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- HEADER -->
+  <div class="doc-header">
+    <div class="org">Reliable Exteriors Group — Internal Operations</div>
+    <h1>Roof Auto AI</h1>
+    <div class="subtitle">Standard Operating Procedure — AI-Powered Job Processing System</div>
+    <div class="doc-meta">
+      <span>📄 Document Type: SOP</span>
+      <span>🔄 Version: 2.0</span>
+      <span>📅 Effective Date: May 2026</span>
+      <span>👤 Maintained by: Operations / IT</span>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#purpose">Purpose &amp; Scope</a></li>
+      <li><a href="#overview">System Overview</a></li>
+      <li><a href="#access">How to Access the System</a></li>
+      <li><a href="#standard-job">Running a Standard Job</a>
+        <ol>
+          <li><a href="#step1">Step 1 — Create the Job</a></li>
+          <li><a href="#step2">Step 2 — Upload Documents</a></li>
+          <li><a href="#step3">Step 3 — Review &amp; Download Results</a></li>
+        </ol>
+      </li>
+      <li><a href="#documents">Document Preparation Guide</a></li>
+      <li><a href="#reading-results">Reading the Results</a></li>
+      <li><a href="#email-delivery">Email Delivery</a></li>
+      <li><a href="#formula-engine">Adjusting the Formula Engine</a></li>
+      <li><a href="#quality-check">Quality Control Checklist</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#escalation">Escalation Contacts</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. PURPOSE -->
+  <div class="section" id="purpose">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <h2>Purpose &amp; Scope</h2>
+    </div>
+    <p>This Standard Operating Procedure defines how Reliable Exteriors Group staff should use the <strong>Roof Auto AI</strong> system to generate material orders, crew instructions, and labor item documentation for roofing jobs.</p>
+    <p>This SOP applies to:</p>
+    <ul>
+      <li><strong>Project Managers (PMs)</strong> — responsible for initiating jobs and reviewing output</li>
+      <li><strong>Office Staff</strong> — responsible for uploading documents and distributing the PDF</li>
+      <li><strong>Operations Managers</strong> — responsible for adjusting formulas and quality review</li>
+    </ul>
+    <div class="callout info">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body"><strong>This system is for internal use only.</strong> Roof Auto AI is a private application — do not share the URL with customers or external parties.</div>
+    </div>
+  </div>
+
+  <!-- 2. OVERVIEW -->
+  <div class="section" id="overview">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <h2>System Overview</h2>
+    </div>
+    <p>Roof Auto AI eliminates manual material calculation and crew documentation by using artificial intelligence (Claude AI) to read job documents and produce ready-to-use outputs automatically.</p>
+
+    <h3>What the system does automatically</h3>
+    <div class="result-grid">
+      <div class="result-card">
+        <div class="label">Extracts</div>
+        <div class="value">Measurements</div>
+        <p>Reads squares, pitch, ridge/hip/valley/rake/eave lengths, pipe boots from Eagle View reports</p>
+      </div>
+      <div class="result-card">
+        <div class="label">Calculates</div>
+        <div class="value">12 Materials</div>
+        <p>Shingles, underlayment, ice &amp; water, drip edge, pipe jacks, ridge vent, nails, sealant, and more</p>
+      </div>
+      <div class="result-card">
+        <div class="label">Generates</div>
+        <div class="value">Crew Docs</div>
+        <p>Site-specific crew instructions, labor items, and material notes based on the job's contract and jurisdiction</p>
+      </div>
+      <div class="result-card">
+        <div class="label">Delivers</div>
+        <div class="value">PDF Email</div>
+        <p>Automatically emails a formatted PDF to Cheryl at the time of processing</p>
+      </div>
+    </div>
+
+    <h3>Processing time</h3>
+    <p>A typical job completes in <strong>70 to 120 seconds</strong>. Do not close the browser tab or navigate away during processing.</p>
+
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-dot"><span>1s</span></div>
+        <div class="tl-body"><h4>Files upload to secure storage</h4><p>Directly to Supabase — does not go through email or external services</p></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot"><span>60s</span></div>
+        <div class="tl-body"><h4>Claude AI reads all documents</h4><p>Eagle View, contract, city/county codes are sent to the AI simultaneously</p></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot"><span>90s</span></div>
+        <div class="tl-body"><h4>Formulas calculate materials</h4><p>Quantities computed using the configured coverage constants</p></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot"><span>100s</span></div>
+        <div class="tl-body"><h4>PDF generated and emailed</h4><p>PDF is available for immediate download and sent to cheryl@therelexgroup.com</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ACCESS -->
+  <div class="section" id="access">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <h2>How to Access the System</h2>
+    </div>
+    <p>Open a web browser (Chrome or Edge recommended) and navigate to the Roof Auto AI URL provided by your IT administrator.</p>
+    <p>There is no login required. The system is private by URL only — keep the address internal.</p>
+    <p>Two pages are available:</p>
+    <table>
+      <tr><th>Page</th><th>URL Path</th><th>Who Uses It</th></tr>
+      <tr><td><strong>Job Dashboard</strong></td><td><code>/</code> (homepage)</td><td>All staff — upload documents and process jobs</td></tr>
+      <tr><td><strong>Formula Engine</strong></td><td><code>/formula-engine</code></td><td>Operations Manager only — adjust material coverage constants</td></tr>
+    </table>
+    <div class="callout warning">
+      <span class="callout-icon">⚠️</span>
+      <div class="callout-body"><strong>Only authorized staff should access <code>/formula-engine</code>.</strong> Incorrect formula values will cause wrong material quantities on all future jobs until corrected.</div>
+    </div>
+  </div>
+
+  <!-- 4. STANDARD JOB -->
+  <div class="section" id="standard-job">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <h2>Running a Standard Job</h2>
+    </div>
+    <p>Every job follows the same 3-step workflow in the browser. Complete each step in order.</p>
+
+    <div class="steps">
+
+      <!-- STEP 1 -->
+      <div class="step" id="step1">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Create the Job</h3>
+          <p>Fill in the four fields on the first screen.</p>
+          <table>
+            <tr><th>Field</th><th>What to Enter</th><th>Required?</th></tr>
+            <tr>
+              <td><strong>Customer Name</strong></td>
+              <td>Full name as it appears on the contract (e.g. <em>Ann Scarritt</em>)</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Address</strong></td>
+              <td>Full street address including city, state, and ZIP</td>
+              <td>Recommended</td>
+            </tr>
+            <tr>
+              <td><strong>Recipient Email</strong></td>
+              <td>Pre-filled as <strong>cheryl@therelexgroup.com</strong> — do not change unless instructed</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td><strong>Job Notes</strong></td>
+              <td>Any special instructions not covered in the documents (optional)</td>
+              <td>No</td>
+            </tr>
+          </table>
+          <div class="callout tip">
+            <span class="callout-icon">✅</span>
+            <div class="callout-body">The email field is pre-filled with Cheryl's address. You should not need to change it. If you clear it accidentally, type <strong>cheryl@therelexgroup.com</strong> back in.</div>
+          </div>
+          <p>Click <strong>Next Step</strong> when all required fields are filled. The button will be grayed out until a valid email is entered.</p>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step" id="step2">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Upload Documents</h3>
+          <p>Click the upload area or drag files onto it to add documents. You can add multiple files at once.</p>
+
+          <h4>What to upload</h4>
+          <table>
+            <tr><th>Document</th><th>File Type</th><th>Priority</th><th>Notes</th></tr>
+            <tr>
+              <td>Eagle View Measurement Report</td>
+              <td><span class="chip chip-blue">PDF</span></td>
+              <td><span class="chip chip-red">Critical</span></td>
+              <td>The primary source for all measurements (squares, pitch, LF). Always include this.</td>
+            </tr>
+            <tr>
+              <td>Signed Contract</td>
+              <td><span class="chip chip-blue">PDF</span></td>
+              <td><span class="chip chip-red">Critical</span></td>
+              <td>Determines retail vs. insurance, shingle product/color, contract scope</td>
+            </tr>
+            <tr>
+              <td>City / County Code PDF</td>
+              <td><span class="chip chip-blue">PDF</span></td>
+              <td><span class="chip chip-yellow">High</span></td>
+              <td>Enables jurisdiction-specific crew instructions (permits, mid-roof inspection)</td>
+            </tr>
+            <tr>
+              <td>Insurance Scope / Xactimate</td>
+              <td><span class="chip chip-blue">PDF</span></td>
+              <td><span class="chip chip-yellow">High</span></td>
+              <td>Required for insurance jobs. Identifies approved line items.</td>
+            </tr>
+            <tr>
+              <td>Before / Progress / After Photos</td>
+              <td><span class="chip chip-blue">PDF</span> <span class="chip chip-green">JPG/PNG</span></td>
+              <td><span class="chip chip-gray">Optional</span></td>
+              <td>Noted in job record but <strong>not analyzed by AI</strong>. Include for documentation only.</td>
+            </tr>
+          </table>
+
+          <h4>File size limits</h4>
+          <ul>
+            <li>Maximum <strong>10 MB per file</strong> (browser enforces this)</li>
+            <li>PDFs over <strong>4 MB</strong> will be skipped — compress large PDFs before uploading</li>
+            <li>Photos are automatically capped at 1.5 MB — no action needed</li>
+          </ul>
+
+          <div class="do-dont">
+            <div class="do-box">
+              <h4>✓ DO include</h4>
+              <ul>
+                <li>Eagle View PDF</li>
+                <li>Signed contract PDF</li>
+                <li>City/county codes PDF</li>
+                <li>Insurance scope (if applicable)</li>
+                <li>Any other contract addenda</li>
+              </ul>
+            </div>
+            <div class="dont-box">
+              <h4>✗ DO NOT include</h4>
+              <ul>
+                <li>Duplicate copies of the same document</li>
+                <li>Prior job documents from different addresses</li>
+                <li>Blank or corrupted files</li>
+                <li>Files larger than 4 MB (compress first)</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="callout tip">
+            <span class="callout-icon">✅</span>
+            <div class="callout-body">Photo files are automatically detected by filename. Files with <em>before</em>, <em>progress</em>, <em>completion</em>, <em>after</em>, <em>photo</em>, <em>pic</em>, <em>image</em>, or <em>drone</em> in their name will be stored but not sent to Claude AI — no action needed.</div>
+          </div>
+
+          <p>Once all files are added, click <strong>Process with AI</strong>. A loading overlay will appear — <strong>do not close the tab</strong>.</p>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step" id="step3">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Review &amp; Download Results</h3>
+          <p>When processing is complete, three panels appear on screen:</p>
+          <ol>
+            <li><strong>Material Order Form</strong> — all calculated quantities</li>
+            <li><strong>Crew Instructions</strong> — ordered, site-specific steps</li>
+            <li><strong>Labor Items</strong> — billable charges for the invoice</li>
+          </ol>
+          <p>The PDF has already been emailed to cheryl@therelexgroup.com. To save a local copy, click <strong>Download PDF</strong>.</p>
+          <p>To process another job, click <strong>Start New Job</strong>. The form resets with Cheryl's email pre-filled.</p>
+          <div class="callout warning">
+            <span class="callout-icon">⚠️</span>
+            <div class="callout-body"><strong>Job data is automatically deleted from our secure storage after 10 minutes.</strong> Download the PDF before closing the page if you need a local copy. The emailed PDF will remain in the inbox.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /steps -->
+  </div>
+
+  <!-- 5. DOCUMENT PREPARATION -->
+  <div class="section" id="documents">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <h2>Document Preparation Guide</h2>
+    </div>
+
+    <h3>Eagle View Report</h3>
+    <p>This is the most critical document. The AI extracts these fields from it:</p>
+    <ul>
+      <li><strong>Squares</strong> (total roof area in SQ)</li>
+      <li><strong>Pitch</strong> (slope — e.g. 4/12, 6/12)</li>
+      <li><strong>Ridge, Hip, Valley, Rake, Eave lengths</strong> (in linear feet)</li>
+      <li><strong>Pipe boot count</strong></li>
+    </ul>
+    <div class="callout warning">
+      <span class="callout-icon">⚠️</span>
+      <div class="callout-body">Do not rename the Eagle View PDF to anything containing the words <em>photo</em>, <em>before</em>, <em>image</em>, etc. — it will be filtered out and not sent to Claude AI, resulting in zero material quantities.</div>
+    </div>
+
+    <h3>Contract PDF</h3>
+    <p>The AI reads the contract to determine:</p>
+    <ul>
+      <li>Contract type (Retail vs. Insurance)</li>
+      <li>Shingle product name and color</li>
+      <li>Any special items (skylights, solar panels, swamp coolers, chimney)</li>
+      <li>Ventilation strategy (ridge, box, or hybrid)</li>
+    </ul>
+    <p>If the contract is a multi-page scan, include the full PDF. The AI reads all pages.</p>
+
+    <h3>City / County Code Document</h3>
+    <p>This tells the AI what local code requirements apply (permit requirements, mid-roof inspection thresholds, decking standards, ice &amp; water requirements). Use the REG-prepared City/County Code Compliance Guide PDF for the relevant jurisdiction.</p>
+
+    <h3>Compressing Large PDFs</h3>
+    <p>If a PDF exceeds 4 MB, use one of these free tools before uploading:</p>
+    <ul>
+      <li><strong>Adobe Acrobat</strong> → File → Reduce File Size</li>
+      <li><strong>Smallpdf.com</strong> → Compress PDF</li>
+      <li><strong>ilovepdf.com</strong> → Compress PDF</li>
+    </ul>
+    <p>Target file size: under 2 MB per document for fastest processing.</p>
+  </div>
+
+  <!-- 6. READING RESULTS -->
+  <div class="section" id="reading-results">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <h2>Reading the Results</h2>
+    </div>
+
+    <h3>Material Order Form</h3>
+    <table>
+      <tr><th>Item</th><th>Unit</th><th>How it's calculated</th></tr>
+      <tr><td>Field Shingles (w/ 10% waste)</td><td>SQ</td><td>Eagle View squares × 1.10, rounded up</td></tr>
+      <tr><td>Hip &amp; Ridge Cap Shingles</td><td>Bundles</td><td>(Ridges + Hips) × 1.30 ÷ LF per bundle, rounded up</td></tr>
+      <tr><td>Starter Strip</td><td>Bundles</td><td>(Eaves + Rakes) ÷ 113 LF/bundle, minimum 3</td></tr>
+      <tr><td>Synthetic Underlayment</td><td>Rolls</td><td>Squares × 1.05 ÷ SQ per roll (configurable), rounded up</td></tr>
+      <tr><td>Ice &amp; Water Shield</td><td>Rolls</td><td>(Eaves + Valleys) × 1.05 ÷ LF per roll, rounded up</td></tr>
+      <tr><td>Drip Edge — Rake</td><td>Pieces</td><td>Rake LF × 1.30 ÷ 10 LF/stick, rounded up</td></tr>
+      <tr><td>Drip Edge — Eave</td><td>Pieces</td><td>Eave LF × 1.30 ÷ 10 LF/stick, rounded up</td></tr>
+      <tr><td>Pipe Jacks</td><td>Each</td><td>Direct count from Eagle View / contract</td></tr>
+      <tr><td>Ridge Vent Sections</td><td>Sections</td><td>Ridge LF ÷ 4, rounded up (4 LF per section)</td></tr>
+      <tr><td>Coil Nails 1-1/4"</td><td>Cases</td><td>Squares ÷ SQ per case (configurable), rounded up</td></tr>
+      <tr><td>Cap Nails (Plastic)</td><td>Boxes</td><td>1 box if ≤ 25 SQ; 2 boxes if &gt; 25 SQ</td></tr>
+      <tr><td>Geocel 2300 Sealant</td><td>Tubes</td><td>Based on valleys and ridges; minimum 3 tubes always</td></tr>
+    </table>
+
+    <h3>Crew Instructions</h3>
+    <p>These are ordered, job-specific steps generated from the AI's reading of all documents. They reflect:</p>
+    <ul>
+      <li>The specific jurisdiction's permit and inspection requirements</li>
+      <li>Ventilation strategy for this roof</li>
+      <li>Special items (solar panels, swamp coolers, chimneys, skylights)</li>
+      <li>Tear-off rules and decking inspection</li>
+      <li>Photography requirements for the job</li>
+      <li>Site protection and safety setup</li>
+    </ul>
+    <div class="callout danger">
+      <span class="callout-icon">🔴</span>
+      <div class="callout-body"><strong>Always review crew instructions before distributing to the crew.</strong> AI-generated content is accurate for standard cases, but a PM should review for any unusual site conditions not captured in the uploaded documents.</div>
+    </div>
+
+    <h3>Labor Items</h3>
+    <p>These are the billable line items for the job — tear-off per layer, story charges, steep slope, skylight, permit fee, etc. They should be cross-referenced with the Xactimate scope or retail contract before finalizing the invoice.</p>
+
+    <h3>Material Notes</h3>
+    <p>Notes appear in blue below the Material Order Form on screen and in the PDF. They include:</p>
+    <ul>
+      <li>Shingle product name, color, and color reference links</li>
+      <li>Drip edge, pipe boot, and flashing color specs</li>
+      <li><strong>Supplement flags</strong> — items that may require a supplemental charge (e.g. code-required drip edge not in scope, mid-roof inspection fee)</li>
+      <li>Confirmation notes (e.g. "No valleys — no valley metal needed")</li>
+    </ul>
+  </div>
+
+  <!-- 7. EMAIL DELIVERY -->
+  <div class="section" id="email-delivery">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <h2>Email Delivery</h2>
+    </div>
+    <p>The PDF is automatically emailed to <strong>cheryl@therelexgroup.com</strong> at the end of every successfully processed job. No manual action is required.</p>
+
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Sent From</td><td>Roof Auto AI &lt;izzy.marketing.hub@gmail.com&gt;</td></tr>
+      <tr><td>Sent To</td><td>cheryl@therelexgroup.com (pre-set default)</td></tr>
+      <tr><td>Subject</td><td>Materials Order &amp; Crew Summary — [Customer Name]</td></tr>
+      <tr><td>Attachment</td><td>[CustomerName]_Materials_Order.pdf</td></tr>
+    </table>
+
+    <h3>If the email confirmation shows "email failed"</h3>
+    <ol>
+      <li>The PDF will still be available on screen — click <strong>Download PDF</strong> immediately</li>
+      <li>Forward the downloaded PDF to cheryl@therelexgroup.com manually</li>
+      <li>Notify the IT administrator to check the SMTP configuration</li>
+    </ol>
+
+    <div class="callout tip">
+      <span class="callout-icon">✅</span>
+      <div class="callout-body">Check Cheryl's inbox (or the Roof Auto AI Gmail sender inbox) if you're unsure whether the email arrived. Emails typically appear within 1–2 minutes of job completion.</div>
+    </div>
+  </div>
+
+  <!-- 8. FORMULA ENGINE -->
+  <div class="section" id="formula-engine">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <h2>Adjusting the Formula Engine</h2>
+    </div>
+    <div class="callout warning">
+      <span class="callout-icon">⚠️</span>
+      <div class="callout-body"><strong>Formula Engine access is restricted to Operations Managers only.</strong> Changes affect all future jobs immediately.</div>
+    </div>
+
+    <p>Navigate to <code>/formula-engine</code> in the address bar.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Identify what needs changing</h3>
+          <p>Each card represents one material type. The numeric value is the coverage constant — how much area or length one unit of material covers.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Edit the value</h3>
+          <p>Click inside the number field and type the new value. Common adjustments:</p>
+          <table>
+            <tr><th>If you're ordering this product</th><th>Set this value</th></tr>
+            <tr><td>Synthetic underlayment (standard roll)</td><td>Felt Coverage = <strong>10</strong></td></tr>
+            <tr><td>15 LB felt paper</td><td>Felt Coverage = <strong>4</strong></td></tr>
+            <tr><td>Tamko ridge cap (31 LF/bundle)</td><td>Ridge Cap Coverage = <strong>31</strong></td></tr>
+            <tr><td>GAF ridge cap (33 LF/bundle)</td><td>Ridge Cap Coverage = <strong>33</strong></td></tr>
+            <tr><td>Standard 10 ft drip edge sticks</td><td>Drip Edge Length = <strong>10</strong></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Toggle materials on or off</h3>
+          <p>Use the <strong>Enable Calculation</strong> checkbox on each card. Unchecking a material sets its quantity to 0 on all jobs. Use this if a material is ordered centrally or through a separate system.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Save changes</h3>
+          <p>Click <strong>Save Changes</strong> in the top right. A green confirmation message appears. The change is live immediately — no restart required.</p>
+          <div class="callout tip">
+            <span class="callout-icon">✅</span>
+            <div class="callout-body">After saving, run a test job to verify the quantities look correct before processing real jobs.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. QUALITY CONTROL -->
+  <div class="section" id="quality-check">
+    <div class="section-header">
+      <div class="section-num">9</div>
+      <h2>Quality Control Checklist</h2>
+    </div>
+    <p>After every processed job, a PM or Office Manager should verify the following before distributing results to the crew or placing orders.</p>
+
+    <h3>Extracted Data Check</h3>
+    <ul class="checklist">
+      <li>Customer name and address match the contract</li>
+      <li>Squares match the Eagle View total area (±1 SQ is acceptable)</li>
+      <li>Pitch matches the Eagle View dominant pitch</li>
+      <li>Contract type (Retail / Insurance) is correct</li>
+      <li>Shingle product and color match the signed contract</li>
+      <li>Pipe boot count matches the Eagle View or site survey</li>
+      <li>Special items (solar panels, skylights, swamp cooler, chimney) correctly identified</li>
+    </ul>
+
+    <h3>Material Quantities Check</h3>
+    <ul class="checklist">
+      <li>Field shingles ≈ Eagle View squares × 1.10 (rounded up)</li>
+      <li>No material quantity shows as 0 unexpectedly (indicates extraction failure)</li>
+      <li>Drip edge totals make sense given the roof perimeter</li>
+      <li>Sealant shows at least 3 tubes</li>
+      <li>Starter strip shows at least 3 bundles</li>
+    </ul>
+
+    <h3>Crew Instructions Check</h3>
+    <ul class="checklist">
+      <li>Permit requirement is mentioned (if applicable to the jurisdiction)</li>
+      <li>Mid-roof inspection is flagged for low-slope roofs (under 4:12 pitch)</li>
+      <li>Ventilation strategy matches the contract (Ridge, Box, or Hybrid)</li>
+      <li>Any solar panels / skylights / swamp coolers have specific handling instructions</li>
+      <li>Photo requirements are included for CompanyCam</li>
+      <li>No obvious errors or mismatched addresses appear in the instructions</li>
+    </ul>
+
+    <h3>Supplement Flags Check</h3>
+    <ul class="checklist">
+      <li>Review all items marked "SUPPLEMENT FLAG" in Material Notes</li>
+      <li>Confirm any flagged items are added to the invoice or supplement where applicable</li>
+    </ul>
+
+    <div class="callout danger">
+      <span class="callout-icon">🔴</span>
+      <div class="callout-body"><strong>If any material shows 0 SQ or 0 LF unexpectedly,</strong> the Eagle View was likely not processed. Check that the Eagle View file is not named with words like "photo" and re-run the job.</div>
+    </div>
+  </div>
+
+  <!-- 10. TROUBLESHOOTING -->
+  <div class="section" id="troubleshooting">
+    <div class="section-header">
+      <div class="section-num">10</div>
+      <h2>Troubleshooting</h2>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🔴 All material quantities show 0</div>
+      <div class="trouble-a">
+        <p>This usually means the Eagle View was not read by the AI.</p>
+        <ol>
+          <li>Check the Eagle View filename — does it contain any of these words? <em>photo, before, progress, completion, after, image, pic, drone</em></li>
+          <li>If yes, rename the file and re-run the job</li>
+          <li>If no, check if the file is over 4 MB — compress it and re-upload</li>
+          <li>If still failing, note the error message and contact IT</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🔴 "Server error" or blank screen during processing</div>
+      <div class="trouble-a">
+        <ol>
+          <li>Wait 60 seconds and refresh the page</li>
+          <li>Try re-running the job with fewer or smaller files</li>
+          <li>If the error message says "Claude AI error", the AI service may be temporarily down — wait 5 minutes and try again</li>
+          <li>If the problem persists, contact IT with the exact error message shown</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🟡 Processing takes more than 3 minutes</div>
+      <div class="trouble-a">
+        <ol>
+          <li>Do not close the browser tab — the job is still running</li>
+          <li>Large PDFs (2–4 MB) are the most common cause of slow processing</li>
+          <li>If it exceeds 5 minutes with no result, the job has likely timed out — refresh and try again with compressed files</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🟡 Email not received by Cheryl</div>
+      <div class="trouble-a">
+        <ol>
+          <li>Check the results screen — does it say "email sent"?</li>
+          <li>If yes, ask Cheryl to check her spam/junk folder. The sender is <em>izzy.marketing.hub@gmail.com</em></li>
+          <li>If the screen says email failed, download the PDF from the results screen and email it to cheryl@therelexgroup.com manually</li>
+          <li>Notify IT if emails continue to fail</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🟡 "File too large" error or file won't upload</div>
+      <div class="trouble-a">
+        <ol>
+          <li>The file exceeds 10 MB (browser limit) — compress it using Smallpdf.com or Adobe Acrobat</li>
+          <li>Target under 2 MB per file for best performance</li>
+          <li>Photos from a phone may be very large — use PDF compression before uploading photo PDF compilations</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🟡 Shingle color or product is wrong in the output</div>
+      <div class="trouble-a">
+        <ol>
+          <li>Verify the signed contract clearly states the product and color — scan quality can affect AI reading accuracy</li>
+          <li>If the contract has a low-resolution scan, run it through an online PDF enhancer or re-scan at 300 DPI</li>
+          <li>You can note the correct product manually when forwarding to the crew — the AI output is a starting point, not a replacement for PM review</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🔴 "Next Step" button is grayed out on Step 1</div>
+      <div class="trouble-a">
+        <p>The email field contains an invalid address. Ensure:</p>
+        <ul>
+          <li>The email field contains <strong>cheryl@therelexgroup.com</strong> (or another valid email)</li>
+          <li>There are no extra spaces before or after the address</li>
+          <li>The Customer Name field is filled in</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="trouble-item">
+      <div class="trouble-q">🟡 Formula Engine shows "Error updating formulas"</div>
+      <div class="trouble-a">
+        <ol>
+          <li>This means the database table may not exist yet. Contact IT to run the Supabase schema setup script.</li>
+          <li>Your changes were NOT saved — do not proceed with jobs until this is resolved</li>
+        </ol>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 11. ESCALATION -->
+  <div class="section" id="escalation">
+    <div class="section-header">
+      <div class="section-num">11</div>
+      <h2>Escalation Contacts</h2>
+    </div>
+    <table>
+      <tr><th>Issue</th><th>First Contact</th><th>Escalate To</th></tr>
+      <tr>
+        <td>App not loading / server error</td>
+        <td>IT Administrator</td>
+        <td>Hosting provider (Vercel) status page</td>
+      </tr>
+      <tr>
+        <td>AI returns wrong data / zero quantities</td>
+        <td>IT Administrator</td>
+        <td>Developer — check Anthropic API key and status</td>
+      </tr>
+      <tr>
+        <td>Email not delivered</td>
+        <td>IT Administrator</td>
+        <td>Developer — check Gmail SMTP App Password</td>
+      </tr>
+      <tr>
+        <td>Formula Engine saved wrong values</td>
+        <td>Operations Manager</td>
+        <td>IT Administrator to restore correct values</td>
+      </tr>
+      <tr>
+        <td>Crew instructions clearly incorrect for a jurisdiction</td>
+        <td>Operations Manager</td>
+        <td>Developer — update training data rules in <code>training-data.ts</code></td>
+      </tr>
+    </table>
+
+    <div class="callout info">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body">When contacting IT, always include: (1) the customer name and address, (2) the exact error message on screen, (3) the list of files you uploaded, and (4) the time of the attempt.</div>
+    </div>
+  </div>
+
+  <!-- 12. GLOSSARY -->
+  <div class="section" id="glossary">
+    <div class="section-header">
+      <div class="section-num">12</div>
+      <h2>Glossary</h2>
+    </div>
+    <table>
+      <tr><th>Term</th><th>Definition</th></tr>
+      <tr><td><strong>SQ (Square)</strong></td><td>Unit of roofing measurement. 1 SQ = 100 square feet of roof area.</td></tr>
+      <tr><td><strong>LF (Linear Foot)</strong></td><td>Length measurement — used for ridges, hips, valleys, rakes, eaves, and flashing.</td></tr>
+      <tr><td><strong>Eagle View</strong></td><td>Satellite-based roof measurement report generated by EagleView Technologies. The primary source for all roof dimensions.</td></tr>
+      <tr><td><strong>Squares</strong></td><td>Total roof area measured by Eagle View. Used as the base for all material calculations.</td></tr>
+      <tr><td><strong>Pitch</strong></td><td>Roof slope expressed as rise-over-run (e.g. 6/12 = 6 inches of rise per 12 inches of horizontal run).</td></tr>
+      <tr><td><strong>Ridge</strong></td><td>The horizontal peak of a roof where two slopes meet at the top.</td></tr>
+      <tr><td><strong>Hip</strong></td><td>A sloped external corner where two roof sections meet diagonally.</td></tr>
+      <tr><td><strong>Valley</strong></td><td>The internal angle where two roof sections meet — water drains through valleys.</td></tr>
+      <tr><td><strong>Rake</strong></td><td>The sloped edge of a roof at the gable end.</td></tr>
+      <tr><td><strong>Eave</strong></td><td>The lower horizontal edge of a roof, typically above the gutters.</td></tr>
+      <tr><td><strong>I&amp;W / Ice &amp; Water Shield</strong></td><td>Self-adhering waterproofing membrane installed at eaves, valleys, and penetrations.</td></tr>
+      <tr><td><strong>Drip Edge</strong></td><td>Metal strip installed at roof edges to direct water away from fascia.</td></tr>
+      <tr><td><strong>Pipe Boot / Pipe Jack</strong></td><td>Flashing boots installed around pipe penetrations (plumbing vents).</td></tr>
+      <tr><td><strong>Starter Strip</strong></td><td>First course of shingles (or dedicated starter product) installed at eaves and rakes.</td></tr>
+      <tr><td><strong>Supplement</strong></td><td>An additional charge submitted to an insurance company for items not included in the original scope.</td></tr>
+      <tr><td><strong>Mid-Roof Inspection</strong></td><td>A city inspection required at certain stages of installation (before shingles are laid) in specific jurisdictions.</td></tr>
+      <tr><td><strong>Formula Engine</strong></td><td>The admin page at <code>/formula-engine</code> where material coverage constants are configured.</td></tr>
+      <tr><td><strong>Claude AI</strong></td><td>The artificial intelligence model (Anthropic Claude Sonnet 4.6) used to read and extract data from job documents.</td></tr>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div style="border-top:2px solid var(--border);padding-top:24px;margin-top:24px;text-align:center;color:var(--muted);font-size:12px">
+    <p><strong>Reliable Exteriors Group — Roof Auto AI SOP</strong></p>
+    <p>Confidential — Internal Use Only — Version 2.0 — May 2026</p>
+    <p style="margin-top:8px">Questions? Contact your IT Administrator or Operations Manager.</p>
+  </div>
+
+</div>
+</body>
+</html>
